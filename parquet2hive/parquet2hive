@@ -1,0 +1,114 @@
+#!/bin/python
+
+import argparse
+import boto3
+import botocore
+import re
+import os
+import json
+import sys
+
+from tempfile import NamedTemporaryFile
+
+udf = {}
+
+def find_jar_path():
+    paths = []
+    jar_file = "parquet-tools.jar"
+
+    paths.append(jar_file)
+    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../parquet2hive/" + jar_file))
+    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/parquet2hive/" + jar_file))
+    paths.append("../../../current-release/" + jar_file)
+    paths.append(os.path.join(sys.prefix, "share/parquet2hive/" + jar_file))
+
+    for path in paths:
+        if os.path.exists(path):
+            return path
+
+    raise Exception("Failure to locate parquet-tools.jar")
+
+
+def get_partitioning_fields(prefix):
+    return re.findall("([^=/]+)=[^=/]+", prefix)
+
+
+def main(dataset):
+    m = re.search("s3://([^/]*)/(.*)", dataset)
+    bucket_name = m.group(1)
+    prefix = m.group(2)
+
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(bucket_name)
+
+    for key in bucket.objects.filter(Prefix=prefix):
+        sample = key
+        break
+
+    s3_client = boto3.client('s3')
+    tmp_file = NamedTemporaryFile()
+    s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
+
+    meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
+    schema = json.loads("{" + re.search("parquet.avro.schema = {(.+)}", meta).group(1) + "}")
+
+    partitions = get_partitioning_fields(sample.key[len(prefix) + 1:])
+    print avro2sql(schema, prefix.split("/")[0], dataset, partitions)
+
+
+def avro2sql(avro, name, location, partitions):
+    fields = [avro2sql_column(field) for field in avro["fields"]]
+    fields_decl = ", ".join(fields)
+
+    if partitions:
+        columns = ", ".join(["{} string".format(p) for p in partitions])
+        partition_decl = " partitioned by ({})".format(columns)
+    else:
+        partition_decl = ""
+
+    return "create external table {}({}){} stored as parquet location '{}';".format(name, fields_decl, partition_decl, location)
+
+
+def avro2sql_column(avro):
+    return "{} {}".format(avro["name"], transform_type(avro["type"]))
+
+
+def transform_type(avro):
+    if avro == "string":
+        return "string"
+    elif avro == "int":
+        return "int"
+    elif avro == "long":
+        return "bigint"
+    elif avro == "float":
+        return "float"
+    elif avro == "double":
+        return "double"
+    elif avro == "boolean":
+        return "boolean"
+    elif isinstance(avro, dict) and avro["type"] == "map":
+        return "map<string,{}>".format(transform_type(avro["values"]))
+    elif isinstance(avro, dict) and avro["type"] == "array":
+        return "array<{}>".format(transform_type(avro["items"]))
+    elif isinstance(avro, dict) and avro["type"] == "record":
+        fields_decl = ", ".join(["{}: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
+        record = "struct<{}>".format(fields_decl)
+        udf[avro["name"]] = record
+        return record
+    elif isinstance(avro, list):
+        return transform_type(avro[0] if avro[1] == "null" else avro[1])
+    else:
+        if avro in udf:
+            return udf[avro]
+        else:
+            raise Exception("Unknown type {}".format(avro))
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Parquet dataset importer for Hive",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument("-d", "--dataset", help="S3 Path to Parquet dataset", type=str, required=True)
+
+    args = parser.parse_args()
+    main(args.dataset)
