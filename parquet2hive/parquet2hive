@@ -52,7 +52,7 @@ def main(dataset):
     meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
     schema = json.loads("{" + re.search("parquet.avro.schema = {(.+)}", meta).group(1) + "}")
 
-    partitions = get_partitioning_fields(sample.key[len(prefix) + 1:])
+    partitions = get_partitioning_fields(sample.key[len(prefix):])
     print avro2sql(schema, prefix.split("/")[0], dataset, partitions)
 
 
@@ -66,7 +66,7 @@ def avro2sql(avro, name, location, partitions):
     else:
         partition_decl = ""
 
-    return "create external table {}({}){} stored as parquet location '{}';".format(name, fields_decl, partition_decl, location)
+    return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '{3}'; msck repair table {0};".format(name, fields_decl, partition_decl, location)
 
 
 def avro2sql_column(avro):
