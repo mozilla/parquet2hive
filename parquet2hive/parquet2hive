@@ -33,6 +33,11 @@ def get_partitioning_fields(prefix):
     return re.findall("([^=/]+)=[^=/]+", prefix)
 
 
+def get_versions(bucket, prefix):
+    result = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix + ("/" if not prefix.endswith("/") else ""))
+    return [o.get('Prefix') for o in result.get('CommonPrefixes')]
+
+
 def main(dataset):
     m = re.search("s3://([^/]*)/(.*)", dataset)
     bucket_name = m.group(1)
@@ -40,23 +45,42 @@ def main(dataset):
 
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
+    versions = get_versions(bucket, prefix)
 
-    for key in bucket.objects.filter(Prefix=prefix):
-        sample = key
-        break
+    for version_prefix in versions:
+        tmp = version_prefix.split("/")
+        if len(tmp) < 2:
+            sys.stderr.write("Ignoring incompatible versioning scheme\n")
+            continue
 
-    s3_client = boto3.client('s3')
-    tmp_file = NamedTemporaryFile()
-    s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
+        dataset_name = tmp[0]
+        version = tmp[1]
+        if not version.startswith("v"):
+            sys.stderr.write("Ignoring incompatible versioning scheme: version names must start with 'v'\n")
+            continue
 
-    meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
-    schema = json.loads("{" + re.search("parquet.avro.schema = {(.+)}", meta).group(1) + "}")
+        sample = ""
+        for key in bucket.objects.filter(Prefix=version_prefix):
+            sample = key
+            break
 
-    partitions = get_partitioning_fields(sample.key[len(prefix):])
-    print avro2sql(schema, prefix.split("/")[0], dataset, partitions)
+        if not sample:
+            sys.stderr.write("Ignoring empty dataset\n")
+            continue
+
+        sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
+        s3_client = boto3.client('s3')
+        tmp_file = NamedTemporaryFile()
+        s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
+
+        meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
+        schema = json.loads("{" + re.search("parquet.avro.schema = {(.+)}", meta).group(1) + "}")
+
+        partitions = get_partitioning_fields(sample.key[len(prefix):])
+        print avro2sql(schema, dataset_name, version, dataset, partitions)
 
 
-def avro2sql(avro, name, location, partitions):
+def avro2sql(avro, name, version, location, partitions):
     fields = [avro2sql_column(field) for field in avro["fields"]]
     fields_decl = ", ".join(fields)
 
@@ -66,7 +90,7 @@ def avro2sql(avro, name, location, partitions):
     else:
         partition_decl = ""
 
-    return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '{3}'; msck repair table {0};".format(name, fields_decl, partition_decl, location)
+    return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '{3}/{4}'; msck repair table {0}_{4};".format(name, fields_decl, partition_decl, location, version)
 
 
 def avro2sql_column(avro):
@@ -111,4 +135,8 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dataset", help="S3 Path to Parquet dataset", type=str, required=True)
 
     args = parser.parse_args()
-    main(args.dataset)
+    try:
+        main(args.dataset)
+    except:
+        print "Failure to parse dataset, expected layout: s3://BUCKET/DATASET/VERSION/DIM=VALUE/.../DIM=VALUE/FILE"
+        exit(-1)
