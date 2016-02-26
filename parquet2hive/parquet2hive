@@ -48,13 +48,13 @@ def main(dataset):
     versions = get_versions(bucket, prefix)
 
     for version_prefix in versions:
-        tmp = version_prefix.split("/")
+        tmp = filter(bool, version_prefix.split("/"))
         if len(tmp) < 2:
             sys.stderr.write("Ignoring incompatible versioning scheme\n")
             continue
 
-        dataset_name = tmp[0]
-        version = tmp[1]
+        dataset_name = tmp[-2]
+        version = tmp[-1]
         if not version.startswith("v"):
             sys.stderr.write("Ignoring incompatible versioning scheme: version names must start with 'v'\n")
             continue
