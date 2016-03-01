@@ -34,8 +34,25 @@ def get_partitioning_fields(prefix):
 
 
 def get_versions(bucket, prefix):
-    result = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix + ("/" if not prefix.endswith("/") else ""))
-    return [o.get('Prefix') for o in result.get('CommonPrefixes')]
+    xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix + ("/" if not prefix.endswith("/") else ""))
+    tentative = [o.get('Prefix') for o in xs.get('CommonPrefixes')]
+    result = []
+
+    for version_prefix in tentative:
+        tmp = filter(bool, version_prefix.split("/"))
+        if len(tmp) < 2:
+            sys.stderr.write("Ignoring incompatible versioning scheme\n")
+            continue
+
+        dataset_name = tmp[-2]
+        version = tmp[-1]
+        if not re.match("^v[0-9]+$", version):
+            sys.stderr.write("Ignoring incompatible versioning scheme: version must be an integer prefixed with a 'v'\n")
+            continue
+
+        result.append((version_prefix, dataset_name, int(version[1:])))
+
+    return [(prefix, name, "v{}".format(version)) for (prefix, name, version) in sorted(result)]
 
 
 def main(dataset):
@@ -47,18 +64,7 @@ def main(dataset):
     bucket = s3.Bucket(bucket_name)
     versions = get_versions(bucket, prefix)
 
-    for version_prefix in versions:
-        tmp = filter(bool, version_prefix.split("/"))
-        if len(tmp) < 2:
-            sys.stderr.write("Ignoring incompatible versioning scheme\n")
-            continue
-
-        dataset_name = tmp[-2]
-        version = tmp[-1]
-        if not version.startswith("v"):
-            sys.stderr.write("Ignoring incompatible versioning scheme: version names must start with 'v'\n")
-            continue
-
+    for (version_prefix, dataset_name, version) in versions:
         sample = ""
         for key in bucket.objects.filter(Prefix=version_prefix):
             sample = key
@@ -78,12 +84,15 @@ def main(dataset):
         schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
 
         partitions = get_partitioning_fields(sample.key[len(prefix):])
+
         sys.stdout.write(avro2sql(schema, dataset_name, version, dataset, partitions))
+        if version_prefix == versions[-1]:  # Most recent version
+            sys.stdout.write(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False))
 
     print ""
 
 
-def avro2sql(avro, name, version, location, partitions):
+def avro2sql(avro, name, version, location, partitions, with_version=True):
     fields = [avro2sql_column(field) for field in avro["fields"]]
     fields_decl = ", ".join(fields)
 
@@ -93,7 +102,10 @@ def avro2sql(avro, name, version, location, partitions):
     else:
         partition_decl = ""
 
-    return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '{3}/{4}'; msck repair table {0}_{4};".format(name, fields_decl, partition_decl, location, version)
+    if with_version:
+        return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '{3}/{4}'; msck repair table {0}_{4}; ".format(name, fields_decl, partition_decl, location, version)
+    else:
+        return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '{3}/{4}'; msck repair table {0}; ".format(name, fields_decl, partition_decl, location, version)
 
 
 def avro2sql_column(avro):
@@ -135,11 +147,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parquet dataset importer for Hive",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("-d", "--dataset", help="S3 Path to Parquet dataset", type=str, required=True)
+    parser.add_argument('dataset', nargs=1, metavar=('dataset',), help="S3 path to Parquet dataset")
 
     args = parser.parse_args()
     try:
-        main(args.dataset)
+        main(args.dataset[0])
     except:
-        print "Failure to parse dataset, expected layout: s3://BUCKET/DATASET/VERSION/DIM=VALUE/.../DIM=VALUE/FILE"
+        print "Failure to parse dataset, expected layout: s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE"
         exit(-1)
