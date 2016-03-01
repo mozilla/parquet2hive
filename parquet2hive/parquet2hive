@@ -78,7 +78,9 @@ def main(dataset):
         schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
 
         partitions = get_partitioning_fields(sample.key[len(prefix):])
-        print avro2sql(schema, dataset_name, version, dataset, partitions)
+        sys.stdout.write(avro2sql(schema, dataset_name, version, dataset, partitions))
+
+    print ""
 
 
 def avro2sql(avro, name, version, location, partitions):
