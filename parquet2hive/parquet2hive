@@ -85,9 +85,9 @@ def main(dataset):
 
         partitions = get_partitioning_fields(sample.key[len(prefix):])
 
-        print "hive -e \"{}\"".format(avro2sql(schema, dataset_name, version, dataset, partitions))
+        print "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions))
         if version_prefix == versions[-1][0]:  # Most recent version
-            print "hive -e \"{}\"".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False))
+            print "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False))
 
 
 def avro2sql(avro, name, version, location, partitions, with_version=True):
@@ -101,13 +101,13 @@ def avro2sql(avro, name, version, location, partitions, with_version=True):
         partition_decl = ""
 
     if with_version:
-        return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '{3}/{4}'; msck repair table {0}_{4}; ".format(name, fields_decl, partition_decl, location, version)
+        return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '\"'{3}/{4}'\"'; msck repair table {0}_{4};".format(name, fields_decl, partition_decl, location, version)
     else:
-        return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '{3}/{4}'; msck repair table {0}; ".format(name, fields_decl, partition_decl, location, version)
+        return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '\"'{3}/{4}'\"'; msck repair table {0};".format(name, fields_decl, partition_decl, location, version)
 
 
 def avro2sql_column(avro):
-    return "{} {}".format(avro["name"], transform_type(avro["type"]))
+    return "`{}` {}".format(avro["name"], transform_type(avro["type"]))
 
 
 def transform_type(avro):
@@ -134,7 +134,7 @@ def transform_type(avro):
     elif isinstance(avro, dict) and avro["type"] == "array":
         return "array<{}>".format(transform_type(avro["items"]))
     elif isinstance(avro, dict) and avro["type"] == "record":
-        fields_decl = ", ".join(["{}: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
+        fields_decl = ", ".join(["`{}`: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
         record = "struct<{}>".format(fields_decl)
         udf[avro["name"]] = record
         return record
