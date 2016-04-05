@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python
 
 import argparse
 import boto3
@@ -68,8 +68,10 @@ def main(dataset):
         sample = ""
         for key in bucket.objects.filter(Prefix=version_prefix):
             sample = key
-            if not sample.key.split("/")[-1].startswith("_"):
-                break
+            if not sample.key.endswith("/"): # ignore "folders"
+                filename = sample.key.split("/")[-1]
+                if not filename.startswith("_"): # ignore files that are prefixed with underscores
+                    break
 
         if not sample:
             sys.stderr.write("Ignoring empty dataset\n")
@@ -99,6 +101,11 @@ def avro2sql(avro, name, version, location, partitions, with_version=True):
         partition_decl = " partitioned by ({})".format(columns)
     else:
         partition_decl = ""
+
+    # check for duplicated fields
+    field_names = [field["name"] for field in avro["fields"]]
+    duplicate_columns = set(field_names) & set(partitions)
+    assert not duplicate_columns, "Columns {} are in both the table columns and the partitioning columns; they should only be in one or another".format(", ".join(duplicate_columns))
 
     if with_version:
         return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '\"'{3}/{4}'\"'; msck repair table {0}_{4};".format(name, fields_decl, partition_decl, location, version)
@@ -130,9 +137,11 @@ def transform_type(avro):
     elif avro == "binary":
         return "binary"
     elif isinstance(avro, dict) and avro["type"] == "map":
-        return "map<string,{}>".format(transform_type(avro["values"]))
+        value_type = avro.get("values", avro.get("valueType")) # this can differ depending on the Avro schema version
+        return "map<string,{}>".format(transform_type(value_type))
     elif isinstance(avro, dict) and avro["type"] == "array":
-        return "array<{}>".format(transform_type(avro["items"]))
+        item_type = avro.get("items", avro.get("elementType")) # this can differ depending on the Avro schema version
+        return "array<{}>".format(transform_type(item_type))
     elif isinstance(avro, dict) and avro["type"] == "record":
         fields_decl = ", ".join(["`{}`: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
         record = "struct<{}>".format(fields_decl)

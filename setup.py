@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='parquet2hive',
-      version='0.2.1',
+      version='0.2.2',
       author='Roberto Agostino Vitillo',
       author_email='rvitillo@mozilla.com',
       description='Hive import statement generator for Parquet datasets',
