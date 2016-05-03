@@ -87,7 +87,7 @@ def main(dataset):
 
         partitions = get_partitioning_fields(sample.key[len(prefix):])
 
-        print "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions))
+        print "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions))
         if version_prefix == versions[-1][0]:  # Most recent version
             print "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False))
 
