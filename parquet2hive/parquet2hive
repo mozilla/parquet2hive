@@ -147,6 +147,10 @@ def transform_type(avro):
         record = "struct<{}>".format(fields_decl)
         udf[avro["name"]] = record
         return record
+    elif isinstance(avro, dict) and avro["type"] == "struct":
+        fields_decl = ", ".join(["`{}`: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
+        record = "struct<{}>".format(fields_decl)
+        return record
     elif isinstance(avro, list):
         return transform_type(avro[0] if avro[1] == "null" else avro[1])
     else:
