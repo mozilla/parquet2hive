@@ -81,7 +81,7 @@ def get_versions(bucket, prefix):
         in sorted(result, key = lambda x : x[2], reverse = True)]
 
 
-def main(dataset, success_only = False):
+def main(dataset, success_only = False, version = None):
     m = re.search("s3://([^/]*)/(.*)", dataset)
     bucket_name = m.group(1)
     prefix = m.group(2)
@@ -89,6 +89,11 @@ def main(dataset, success_only = False):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     versions = get_versions(bucket, prefix)
+
+    if version is not None:
+        versions = [v for v in versions if v[2] == version]
+        if not versions:
+            sys.stderr.write("No schemas available with that version")
 
     for (version_prefix, dataset_name, version) in versions:
         sample = ""
@@ -194,15 +199,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parquet dataset importer for Hive",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('dataset', nargs=1, metavar=('dataset',), help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
-    
+    parser.add_argument('dataset', nargs=1, metavar=('dataset',), 
+			help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
+
     parser.add_argument('--success-only', '-so', action='store_true',
             help='Only process partitions that contain a _SUCCESS file')
+
+    parser.add_argument('--dataset-version', '-dv', default=None,
+            help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514" )
 
     args = parser.parse_args()
 
     try:
-        main(args.dataset[0], args.success_only)
+        main(args.dataset[0], args.success_only, args.dataset_version)
     except Exception as e:
         print "Failure to parse dataset, {}".format(str(e))
         exit(-1)
