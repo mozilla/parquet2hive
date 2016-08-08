@@ -76,7 +76,9 @@ def get_versions(bucket, prefix):
 
         result.append((version_prefix, dataset_name, int(version[1:])))
 
-    return [(prefix, name, "v{}".format(version)) for (prefix, name, version) in sorted(result)]
+    return [(prefix, name, "v{}".format(version)) 
+        for (prefix, name, version) 
+        in sorted(result, key = lambda x : x[2], reverse = True)]
 
 
 def main(dataset, success_only = False):
