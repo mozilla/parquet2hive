@@ -53,8 +53,8 @@ def get_versions(bucket, prefix):
         result.append((version_prefix, dataset_name, int(version[1:])))
 
     return [(prefix, name, "v{}".format(version)) 
-		for (prefix, name, version) 
-		in sorted(result, key = lambda x : -x[2])]
+        for (prefix, name, version) 
+        in sorted(result, key = lambda x : x[2], reverse = True)]
 
 
 def main(dataset, recent_version = False, version = None):
@@ -65,14 +65,14 @@ def main(dataset, recent_version = False, version = None):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     versions = get_versions(bucket, prefix)
-	
+
     if version is not None:
-	versions = [v for v in versions if v[2] == version]
-	if not versions:
-	    sys.stderr.write("No schemas available with that version")
+        versions = [v for v in versions if v[2] == version]
+        if not versions:
+            sys.stderr.write("No schemas available with that version")
 
     if recent_version:
-	versions = [max(versions, key = lambda x : int(x[2][1:]))]
+        versions = [ max(versions, key = lambda x : int(x[2][1:])) ]
 
     for (version_prefix, dataset_name, version) in versions:
         sample = ""
@@ -175,22 +175,22 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('dataset', nargs=1, metavar=('dataset',), 
-			help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
+            help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
 
-    parser.add_argument('--dversion', '-dv', default=None,
-			help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514. Cannot be used with rversion" )
+    parser.add_argument('--dataset-version', '-dv', default=None,
+            help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514. Cannot be used with --use-last-version" )
 
-    parser.add_argument('--rversion', '-rv', action='store_true',
-			help='Store only the most recent version of the dataset, cannot be used with dversion')
+    parser.add_argument('--use-last-version', '-ulv', action='store_true',
+            help='Load only the most recent version of the dataset, cannot be used with --dataset-version')
 
     args = parser.parse_args()
 
-    if args.rversion and args.dversion is not None:
-        sys.stderr.write('Cannot use both --dversion and --rversion')
-	sys.exit()
+    if args.use_last_version and args.dataset_version is not None:
+        sys.stderr.write('Cannot use both --dataset-version and --use-last-version')
+        sys.exit()
 
     try:
-        main(args.dataset[0], args.rversion, args.dversion)
+        main(args.dataset[0], args.use_last_version, args.dataset_version)
     except Exception as e:
         print "Failure to parse dataset, {}".format(str(e))
         exit(-1)
