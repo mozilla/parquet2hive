@@ -8,6 +8,7 @@ import os
 import json
 import sys
 
+from functools32 import lru_cache
 from tempfile import NamedTemporaryFile
 
 udf = {}
@@ -32,9 +33,32 @@ def find_jar_path():
 def get_partitioning_fields(prefix):
     return re.findall("([^=/]+)=[^=/]+", prefix)
 
+@lru_cache(maxsize = 64)
+def check_success_exists(s3, bucket, prefix):
+    if not prefix.endswith('/'):
+        prefix = prefix + '/'
+
+    success_obj_loc = prefix + '_SUCCESS'
+    exists = False
+
+    try:
+        res = s3.Object(bucket, success_obj_loc).load()
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            exists = False
+        else:
+            raise e
+    else:
+        exists = True
+
+    return exists
+
 
 def get_versions(bucket, prefix):
-    xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix + ("/" if not prefix.endswith("/") else ""))
+    if not prefix.endswith('/'):
+        prefix = prefix + '/' 
+
+    xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix)
     tentative = [o.get('Prefix') for o in xs.get('CommonPrefixes')]
     result = []
 
@@ -55,7 +79,7 @@ def get_versions(bucket, prefix):
     return [(prefix, name, "v{}".format(version)) for (prefix, name, version) in sorted(result)]
 
 
-def main(dataset):
+def main(dataset, success_only = False):
     m = re.search("s3://([^/]*)/(.*)", dataset)
     bucket_name = m.group(1)
     prefix = m.group(2)
@@ -67,6 +91,10 @@ def main(dataset):
     for (version_prefix, dataset_name, version) in versions:
         sample = ""
         for key in bucket.objects.filter(Prefix=version_prefix):
+            partition = '/'.join(key.key.split("/")[:-1])
+            if success_only and not check_success_exists(s3, bucket.name, partition):
+                continue
+
             sample = key
             if not sample.key.endswith("/"): # ignore "folders"
                 filename = sample.key.split("/")[-1]
@@ -165,10 +193,14 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('dataset', nargs=1, metavar=('dataset',), help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
+    
+    parser.add_argument('--success-only', '-so', action='store_true',
+            help='Only process partitions that contain a _SUCCESS file')
 
     args = parser.parse_args()
+
     try:
-        main(args.dataset[0])
+        main(args.dataset[0], args.success_only)
     except Exception as e:
         print "Failure to parse dataset, {}".format(str(e))
         exit(-1)
