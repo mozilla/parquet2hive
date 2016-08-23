@@ -18,6 +18,7 @@ def find_jar_path():
     jar_file = "parquet-tools.jar"
 
     paths.append(jar_file)
+    paths.append('parquet2hive/' + jar_file)
     paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../parquet2hive/" + jar_file))
     paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/parquet2hive/" + jar_file))
     paths.append("../../../current-release/" + jar_file)
@@ -81,7 +82,7 @@ def get_versions(bucket, prefix):
         in sorted(result, key = lambda x : x[2], reverse = True)]
 
 
-def main(dataset, success_only = False, recent_version = False, version = None):
+def main(dataset, success_only = False, recent_versions = None, version = None):
     m = re.search("s3://([^/]*)/(.*)", dataset)
     bucket_name = m.group(1)
     prefix = m.group(2)
@@ -95,6 +96,7 @@ def main(dataset, success_only = False, recent_version = False, version = None):
         if not versions:
             sys.stderr.write("No schemas available with that version")
 
+    versions_loaded = 0
     for (version_prefix, dataset_name, version) in versions:
         sample = ""
         for key in bucket.objects.filter(Prefix=version_prefix):
@@ -126,7 +128,8 @@ def main(dataset, success_only = False, recent_version = False, version = None):
         if version_prefix == versions[0][0]:  # Most recent version
             print "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False))
 
-        if recent_version:
+        versions_loaded += 1
+        if recent_versions is not None and versions_loaded >= recent_versions:
             break
 
 
@@ -209,19 +212,19 @@ if __name__ == "__main__":
             help='Only process partitions that contain a _SUCCESS file')
 
     parser.add_argument('--dataset-version', '-dv', default=None,
-            help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514. Cannot be used with --use-last-version" )
+            help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514. Cannot be used with --use-last-versions" )
 
-    parser.add_argument('--use-last-version', '-ulv', action='store_true',
-            help='Load only the most recent version of the dataset, cannot be used with --dataset-version')
+    parser.add_argument('--use-last-versions', '-ulv', nargs='?', const=1, type=int, default=None,
+            help='Load only the most recent version of the dataset, cannot be used with --dataset-version. Defaults to 1')
 
     args = parser.parse_args()
 
-    if args.use_last_version and args.dataset_version is not None:
-        sys.stderr.write('Cannot use both --dataset-version and --use-last-version')
+    if args.use_last_versions and args.dataset_version is not None:
+        sys.stderr.write('Cannot use both --dataset-version and --use-last-versions')
         sys.exit()
 
     try:
-        main(args.dataset[0], args.success_only, args.use_last_version, args.dataset_version)
+        main(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version)
     except Exception as e:
         print "Failure to parse dataset, {}".format(str(e))
         exit(-1)
