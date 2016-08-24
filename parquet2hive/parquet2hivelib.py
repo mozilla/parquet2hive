@@ -10,46 +10,62 @@ from tempfile import NamedTemporaryFile
 
 udf = {}
 
-def find_jar_path():
-    paths = []
-    jar_file = "parquet-tools.jar"
+def get_bash_cmd(dataset, success_only = False, recent_versions = None, version = None):
+    m = re.search("s3://([^/]*)/(.*)", dataset)
+    bucket_name = m.group(1)
+    prefix = m.group(2)
 
-    paths.append(jar_file)
-    paths.append('parquet2hive/' + jar_file)
-    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../parquet2hive/" + jar_file))
-    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/parquet2hive/" + jar_file))
-    paths.append("../../../current-release/" + jar_file)
-    paths.append(os.path.join(sys.prefix, "share/parquet2hive/" + jar_file))
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(bucket_name)
+    versions = get_versions(bucket, prefix)
 
-    for path in paths:
-        if os.path.exists(path):
-            return path
+    if version is not None:
+        versions = [v for v in versions if v[2] == version]
+        if not versions:
+            sys.stderr.write("No schemas available with that version")
 
-    raise Exception("Failure to locate parquet-tools.jar")
+    bash_cmd, versions_loaded = "", 0
+    for (version_prefix, dataset_name, version) in versions:
+        sample, success_exists = "", False
+        for key in bucket.objects.filter(Prefix=version_prefix):
+            partition = "/".join(key.key.split("/")[:-1])
+            if success_only:
+                if check_success_exists(s3, bucket.name, partition):
+                    success_exists = True
+                else:
+                    continue
 
+            sample = key
+            if not sample.key.endswith("/"): # ignore "folders"
+                filename = sample.key.split("/")[-1]
+                if not filename.startswith("_"): # ignore files that are prefixed with underscores
+                    break
 
-def get_partitioning_fields(prefix):
-    return re.findall("([^=/]+)=[^=/]+", prefix)
+        if not sample:
+            if success_only and not success_exists:
+                sys.stderr.write("Ignoring dataset missing _SUCCESS file\n")
+            else:
+                sys.stderr.write("Ignoring empty dataset\n")
+            continue
 
-@lru_cache(maxsize = 64)
-def check_success_exists(s3, bucket, prefix):
-    if not prefix.endswith('/'):
-        prefix = prefix + '/'
+        sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
+        s3_client = boto3.client('s3')
+        tmp_file = NamedTemporaryFile()
+        s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
 
-    success_obj_loc = prefix + '_SUCCESS'
-    exists = False
+        meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
+        schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
+        partitions = get_partitioning_fields(sample.key[len(prefix):])
 
-    try:
-        res = s3.Object(bucket, success_obj_loc).load()
-    except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == "404":
-            exists = False
-        else:
-            raise e
-    else:
-        exists = True
+        bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
+        if versions_loaded == 0:  # Most recent version
+            bash_cmd += "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False)) + '\n'
 
-    return exists
+        versions_loaded += 1
+        if recent_versions is not None and versions_loaded >= recent_versions:
+            break
+
+    return bash_cmd
 
 
 def get_versions(bucket, prefix):
@@ -78,58 +94,46 @@ def get_versions(bucket, prefix):
         for (prefix, name, version)
         in sorted(result, key = lambda x : x[2], reverse = True)]
 
+@lru_cache(maxsize = 64)
+def check_success_exists(s3, bucket, prefix):
+    if not prefix.endswith('/'):
+        prefix = prefix + '/'
 
-def get_bash_cmd(dataset, success_only = False, recent_versions = None, version = None):
-    m = re.search("s3://([^/]*)/(.*)", dataset)
-    bucket_name = m.group(1)
-    prefix = m.group(2)
+    success_obj_loc = prefix + '_SUCCESS'
+    exists = False
 
-    s3 = boto3.resource('s3')
-    bucket = s3.Bucket(bucket_name)
-    versions = get_versions(bucket, prefix)
+    try:
+        res = s3.Object(bucket, success_obj_loc).load()
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            exists = False
+        else:
+            raise e
+    else:
+        exists = True
 
-    if version is not None:
-        versions = [v for v in versions if v[2] == version]
-        if not versions:
-            sys.stderr.write("No schemas available with that version")
+    return exists
 
-    bash_cmd, versions_loaded = '', 0
-    for (version_prefix, dataset_name, version) in versions:
-        sample = ""
-        for key in bucket.objects.filter(Prefix=version_prefix):
-            partition = '/'.join(key.key.split("/")[:-1])
-            if success_only and not check_success_exists(s3, bucket.name, partition):
-                continue
 
-            sample = key
-            if not sample.key.endswith("/"): # ignore "folders"
-                filename = sample.key.split("/")[-1]
-                if not filename.startswith("_"): # ignore files that are prefixed with underscores
-                    break
+def find_jar_path():
+    paths = []
+    jar_file = "parquet-tools.jar"
 
-        if not sample:
-            sys.stderr.write("Ignoring empty dataset\n")
-            continue
+    paths.append(jar_file)
+    paths.append('parquet2hive/' + jar_file)
+    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../parquet2hive/" + jar_file))
+    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/parquet2hive/" + jar_file))
+    paths.append("../../../current-release/" + jar_file)
+    paths.append(os.path.join(sys.prefix, "share/parquet2hive/" + jar_file))
 
-        sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
-        s3_client = boto3.client('s3')
-        tmp_file = NamedTemporaryFile()
-        s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
+    for path in paths:
+        if os.path.exists(path):
+            return path
 
-        meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
-        schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
+    raise Exception("Failure to locate parquet-tools.jar")
 
-        partitions = get_partitioning_fields(sample.key[len(prefix):])
-
-        bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
-        if versions_loaded == 0:  # Most recent version
-            bash_cmd += "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False)) + '\n'
-
-        versions_loaded += 1
-        if recent_versions is not None and versions_loaded >= recent_versions:
-            break
-
-    return bash_cmd
+def get_partitioning_fields(prefix):
+    return re.findall("([^=/]+)=[^=/]+", prefix)
 
 
 def avro2sql(avro, name, version, location, partitions, with_version=True):
@@ -146,11 +150,8 @@ def avro2sql(avro, name, version, location, partitions, with_version=True):
     field_names = [field["name"] for field in avro["fields"]]
     duplicate_columns = set(field_names) & set(partitions)
     assert not duplicate_columns, "Columns {} are in both the table columns and the partitioning columns; they should only be in one or another".format(", ".join(duplicate_columns))
-
-    if with_version:
-        return "drop table if exists {0}_{4}; create external table {0}_{4}({1}){2} stored as parquet location '\"'{3}/{4}'\"'; msck repair table {0}_{4};".format(name, fields_decl, partition_decl, location, version)
-    else:
-        return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '\"'{3}/{4}'\"'; msck repair table {0};".format(name, fields_decl, partition_decl, location, version)
+    table_name = name + "_" + version if with_version else name
+    return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '\"'{3}/{4}'\"'; msck repair table {0};".format(table_name, fields_decl, partition_decl, location, version)
 
 
 def avro2sql_column(avro):
