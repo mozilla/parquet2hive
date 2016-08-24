@@ -159,45 +159,33 @@ def avro2sql_column(avro):
 
 
 def transform_type(avro):
-    if avro == "string":
-        return "string"
-    elif avro == "int" or avro == "integer":
-        return "int"
-    elif avro == "long":
-        return "bigint"
-    elif avro == "float":
-        return "float"
-    elif avro == "double":
-        return "double"
-    elif avro == "boolean":
-        return "boolean"
-    elif avro == "date":
-        return "date"
-    elif avro == "timestamp":
-        return "timestamp"
-    elif avro == "binary":
-        return "binary"
-    elif isinstance(avro, dict) and avro["type"] == "map":
+    is_dict, is_list, is_str = isinstance(avro, dict), isinstance(avro, list), isinstance(avro, str) or isinstance(avro, unicode)
+
+    unchanged_types = ['string', 'int', 'float', 'double', 'boolean', 'date', 'timestamp', 'binary']
+    mapped_types = {'integer' : 'int', 'long' : 'bigint'}
+
+    if is_str and avro in unchanged_types:
+        sql_type = avro
+    elif is_str and avro in mapped_types:
+        sql_type = mapped_types[avro]
+    elif is_dict and avro["type"] == "map":
         value_type = avro.get("values", avro.get("valueType")) # this can differ depending on the Avro schema version
-        return "map<string,{}>".format(transform_type(value_type))
-    elif isinstance(avro, dict) and avro["type"] == "array":
+        sql_type = "map<string,{}>".format(transform_type(value_type))
+    elif is_dict and avro["type"] == "array":
         item_type = avro.get("items", avro.get("elementType")) # this can differ depending on the Avro schema version
-        return "array<{}>".format(transform_type(item_type))
-    elif isinstance(avro, dict) and avro["type"] == "record":
+        sql_type = "array<{}>".format(transform_type(item_type))
+    elif is_dict and avro["type"] in ("record", "struct"):
         fields_decl = ", ".join(["`{}`: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
-        record = "struct<{}>".format(fields_decl)
-        udf[avro["name"]] = record
-        return record
-    elif isinstance(avro, dict) and avro["type"] == "struct":
-        fields_decl = ", ".join(["`{}`: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
-        record = "struct<{}>".format(fields_decl)
-        return record
-    elif isinstance(avro, list):
-        return transform_type(avro[0] if avro[1] == "null" else avro[1])
+        sql_type = "struct<{}>".format(fields_decl)
+        if avro["type"] == "record":
+            udf[avro["name"]] = sql_type 
+    elif is_list:
+        sql_type = transform_type(avro[0] if avro[1] == "null" else avro[1])
+    elif avro in udf:
+        sql_type = udf[avro]
     else:
-        if avro in udf:
-            return udf[avro]
-        else:
-            raise Exception("Unknown type {}".format(avro))
+        raise Exception("Unknown type {}".format(avro))
+
+    return sql_type
 
 
