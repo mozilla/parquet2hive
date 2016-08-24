@@ -57,7 +57,8 @@ def get_versions(bucket, prefix):
         prefix = prefix + '/'
 
     xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix)
-    tentative = [o.get('Prefix') for o in xs.get('CommonPrefixes')]
+    tentative = [ o.get('Prefix') for o in xs.get('CommonPrefixes', []) ]
+
     result = []
     for version_prefix in tentative:
         tmp = filter(bool, version_prefix.split("/"))
@@ -121,7 +122,7 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
         partitions = get_partitioning_fields(sample.key[len(prefix):])
 
         bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
-        if version_prefix == versions[0][0]:  # Most recent version
+        if versions_loaded == 0:  # Most recent version
             bash_cmd += "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False)) + '\n'
 
         versions_loaded += 1

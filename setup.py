@@ -8,4 +8,6 @@ setup(name='parquet2hive',
       url='https://github.com/mozilla/parquet2hive',
       data_files=[('share/parquet2hive', ['parquet2hive/parquet-tools.jar'])],
       scripts=['parquet2hive/parquet2hive'],
-      install_requires=['boto3', 'functools32'])
+      install_requires=['boto3', 'functools32'],
+      setup_requires=['pytest-runner'],
+      tests_require=['pytest'])
