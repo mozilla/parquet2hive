@@ -16,6 +16,7 @@ s3_client = boto3.client('s3')
 s3_client.create_bucket(Bucket = bucket_name)
 bucket = s3.Bucket(bucket_name)
 dataset_file = 'tests/dataset.parquet'
+new_dataset_file = 'tests/dataset-new.parquet'
 simple_dataset_file = 'tests/simple-dataset.parquet'"""
 
 class TestGetBashCmd:
@@ -142,6 +143,27 @@ class TestGetBashCmd:
         assert 'v2' in bash_cmd, 'Should process v2, but didnt'
         assert bash_cmd.find('churn_v2;') < bash_cmd.find('churn;') < bash_cmd.find('churn_v1;'), 'Should process v2 as both churn_v2 and churn before processing v1'
         assert 'v3' not in bash_cmd, 'Should only process v1 and v2 and not v3, but didnt'
+
+    @mock_s3
+    def test_use_most_recent_file(self):
+        from time import sleep
+        exec setup_str
+
+        #new_dataset_file has column 'newer_file', dataset_file does not
+        prefix, version, objects = 'churn', 'v1', ['dataset_file', 'new_dataset_file']
+        filenames = {'dataset_file' : dataset_file, 'new_dataset_file' : new_dataset_file}
+        for _object in objects:
+            key = '/'.join((prefix, version, _object))
+            s3_client.put_object(Bucket = bucket_name, Key = key, Body = open(filenames[_object], 'rb'))
+            sleep(0.1)
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset)
+
+        assert 'id' in bash_cmd, 'Column from newer file should be in schema, but is not'
+        assert 'country' not in bash_cmd, 'Column from older file should not be in schema'
+
+        
 
 
 class TestGetVersions:
