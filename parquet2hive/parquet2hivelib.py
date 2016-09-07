@@ -27,7 +27,8 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
     bash_cmd, versions_loaded = "", 0
     for (version_prefix, dataset_name, version) in versions:
         sample, success_exists = "", False
-        for key in bucket.objects.filter(Prefix=version_prefix):
+        keys = sorted(bucket.objects.filter(Prefix=version_prefix), key = lambda obj : obj.last_modified, reverse = True)
+        for key in keys:
             partition = "/".join(key.key.split("/")[:-1])
             if success_only:
                 if check_success_exists(s3, bucket.name, partition):
