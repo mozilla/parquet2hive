@@ -119,13 +119,14 @@ def check_success_exists(s3, bucket, prefix):
 def find_jar_path():
     paths = []
     jar_file = "parquet-tools.jar"
+    lib_dir = 'parquet2hivemodules/'
 
     paths.append(jar_file)
-    paths.append('parquet2hive/' + jar_file)
-    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../parquet2hive/" + jar_file))
-    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/parquet2hive/" + jar_file))
+    paths.append(lib_dir + jar_file)
+    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../" + lib_dir + jar_file))
+    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/" + lib_dir + jar_file))
     paths.append("../../../current-release/" + jar_file)
-    paths.append(os.path.join(sys.prefix, "share/parquet2hive/" + jar_file))
+    paths.append(os.path.join(sys.prefix, "share/" + lib_dir + jar_file))
 
     for path in paths:
         if os.path.exists(path):
