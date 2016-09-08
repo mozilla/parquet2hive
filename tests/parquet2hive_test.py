@@ -1,6 +1,6 @@
 import boto3
 from moto import mock_s3
-from parquet2hivemodules import parquet2hivelib as lib
+from parquet2hive_modules import parquet2hivelib as lib
 from time import sleep
 
 def _setup_module():
