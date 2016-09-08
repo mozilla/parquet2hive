@@ -1,1 +1,1 @@
-include parquet2hive/parquet-tools.jar
+include parquet2hivemodules/parquet-tools.jar
