@@ -119,7 +119,7 @@ def check_success_exists(s3, bucket, prefix):
 def find_jar_path():
     paths = []
     jar_file = "parquet-tools.jar"
-    lib_dir = 'parquet2hivemodules/'
+    lib_dir = 'parquet2hive_modules/'
 
     paths.append(jar_file)
     paths.append(lib_dir + jar_file)
