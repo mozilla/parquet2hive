@@ -32,7 +32,7 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
 
     bash_cmd, versions_loaded = "", 0
     for (version_prefix, dataset_name, version) in versions:
-        sample, success_exists = "", False
+        success_exists = False
         keys = sorted(bucket.objects.filter(Prefix=version_prefix), key = lambda obj : obj.last_modified, reverse = True)
         for key in keys:
             if ignore_key(key.key):
@@ -44,11 +44,8 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
                     success_exists = True
                 else:
                     continue
-
-            sample = key
             break
-
-        if not sample:
+        else:
             if success_only and not success_exists:
                 sys.stderr.write("Ignoring dataset missing _SUCCESS file\n")
             else:
@@ -58,11 +55,11 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
         sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
         s3_client = boto3.client('s3')
         tmp_file = NamedTemporaryFile()
-        s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
+        s3_client.download_file(key.bucket_name, key.key, tmp_file.name)
 
         meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
         schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
-        partitions = get_partitioning_fields(sample.key[len(prefix):])
+        partitions = get_partitioning_fields(key.key[len(prefix):])
 
         bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
         if versions_loaded == 0:  # Most recent version
