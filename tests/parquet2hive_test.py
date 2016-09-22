@@ -200,7 +200,7 @@ class TestGetVersions:
         for k in keys:
             s3_client.put_object(Bucket = bucket_name, Key = k, Body = b'teststring')
 
-        assert [v[2] for v in lib.get_versions(bucket, prefix)] == ['v2', 'v1'], 'versions not returned in descending order'
+        assert lib.get_versions(bucket, prefix) == ['v2', 'v1'], 'versions not returned in descending order'
 
 class TestSuccessExists:
 
