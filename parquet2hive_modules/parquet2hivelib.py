@@ -29,6 +29,9 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
         sample, success_exists = "", False
         keys = sorted(bucket.objects.filter(Prefix=version_prefix), key = lambda obj : obj.last_modified, reverse = True)
         for key in keys:
+            if ignore_key(key.key):
+                continue
+
             partition = "/".join(key.key.split("/")[:-1])
             if success_only:
                 if check_success_exists(s3, bucket.name, partition):
@@ -37,10 +40,7 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
                     continue
 
             sample = key
-            if not sample.key.endswith("/"): # ignore "folders"
-                filename = sample.key.split("/")[-1]
-                if not filename.startswith("_"): # ignore files that are prefixed with underscores
-                    break
+            break
 
         if not sample:
             if success_only and not success_exists:
@@ -115,6 +115,11 @@ def check_success_exists(s3, bucket, prefix):
 
     return exists
 
+def ignore_key(key):
+    is_folder = key.endswith('/')
+    temp_file_or_dir = any([f.startswith('_') for f in key.split('/')])
+    metadata_file_or_dir = any([f.endswith('$folder$') for f in key.split('/')])
+    return is_folder or temp_file_or_dir or metadata_file_or_dir
 
 def find_jar_path():
     paths = []
