@@ -8,6 +8,12 @@ import sys
 from functools32 import lru_cache
 from tempfile import NamedTemporaryFile
 
+ignore_patterns = [
+    r'.*/$', #dirs
+    r'.*/_', #temp dirs and files
+    r'.*/[^/]*\$folder\$/?' #metadata dirs and files 
+]
+
 udf = {}
 
 def get_bash_cmd(dataset, success_only = False, recent_versions = None, version = None):
@@ -20,47 +26,47 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
     versions = get_versions(bucket, prefix)
 
     if version is not None:
-        versions = [v for v in versions if v[2] == version]
+        versions = [v for v in versions if v == version]
         if not versions:
             sys.stderr.write("No schemas available with that version")
 
     bash_cmd, versions_loaded = "", 0
-    for (version_prefix, dataset_name, version) in versions:
-        sample, success_exists = "", False
+    for version in versions:
+        success_exists = False
+        version_prefix = prefix + '/' + version + '/'
         keys = sorted(bucket.objects.filter(Prefix=version_prefix), key = lambda obj : obj.last_modified, reverse = True)
+
         for key in keys:
+            if ignore_key(key.key):
+                continue
+
             partition = "/".join(key.key.split("/")[:-1])
             if success_only:
                 if check_success_exists(s3, bucket.name, partition):
                     success_exists = True
                 else:
                     continue
+            break
 
-            sample = key
-            if not sample.key.endswith("/"): # ignore "folders"
-                filename = sample.key.split("/")[-1]
-                if not filename.startswith("_"): # ignore files that are prefixed with underscores
-                    break
-
-        if not sample:
+        else:
             if success_only and not success_exists:
                 sys.stderr.write("Ignoring dataset missing _SUCCESS file\n")
             else:
                 sys.stderr.write("Ignoring empty dataset\n")
             continue
 
-        sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
+        sys.stderr.write("Analyzing dataset {}, {}\n".format(prefix, version))
         s3_client = boto3.client('s3')
         tmp_file = NamedTemporaryFile()
-        s3_client.download_file(sample.bucket_name, sample.key, tmp_file.name)
+        s3_client.download_file(key.bucket_name, key.key, tmp_file.name)
 
         meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
         schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
-        partitions = get_partitioning_fields(sample.key[len(prefix):])
+        partitions = get_partitioning_fields(key.key[len(prefix):])
 
-        bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
+        bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, prefix, version, dataset, partitions)) + '\n'
         if versions_loaded == 0:  # Most recent version
-            bash_cmd += "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False)) + '\n'
+            bash_cmd += "hive -e '{}'".format(avro2sql(schema, prefix, version, dataset, partitions, with_version=False)) + '\n'
 
         versions_loaded += 1
         if recent_versions is not None and versions_loaded >= recent_versions:
@@ -76,7 +82,7 @@ def get_versions(bucket, prefix):
     xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix)
     tentative = [ o.get('Prefix') for o in xs.get('CommonPrefixes', []) ]
 
-    result = []
+    versions = []
     for version_prefix in tentative:
         tmp = filter(bool, version_prefix.split("/"))
         if len(tmp) < 2:
@@ -89,11 +95,9 @@ def get_versions(bucket, prefix):
             sys.stderr.write("Ignoring incompatible versioning scheme: version must be an integer prefixed with a 'v'\n")
             continue
 
-        result.append((version_prefix, dataset_name, int(version[1:])))
+        versions.append(version)
 
-    return [(prefix, name, "v{}".format(version))
-        for (prefix, name, version)
-        in sorted(result, key = lambda x : x[2], reverse = True)]
+    return sorted(versions, key = lambda x : int(x[1:]), reverse = True)
 
 @lru_cache(maxsize = 64)
 def check_success_exists(s3, bucket, prefix):
@@ -115,6 +119,8 @@ def check_success_exists(s3, bucket, prefix):
 
     return exists
 
+def ignore_key(key):
+    return any( [re.match(pat, key) for pat in ignore_patterns] )
 
 def find_jar_path():
     paths = []

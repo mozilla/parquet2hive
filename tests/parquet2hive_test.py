@@ -200,7 +200,7 @@ class TestGetVersions:
         for k in keys:
             s3_client.put_object(Bucket = bucket_name, Key = k, Body = b'teststring')
 
-        assert [v[2] for v in lib.get_versions(bucket, prefix)] == ['v2', 'v1'], 'versions not returned in descending order'
+        assert lib.get_versions(bucket, prefix) == ['v2', 'v1'], 'versions not returned in descending order'
 
 class TestSuccessExists:
 
@@ -253,6 +253,27 @@ class TestSuccessExists:
             s3_client.put_object(Bucket = bucket_name, Key = k, Body = b'teststring')
 
         assert not lib.check_success_exists(s3, bucket_name, '/'.join([prefix, version])), '_SUCCESS found when actually missing from directory'
+
+class TestIgnoreKey:
+
+    def test_ignore_real_file_temp_dir(self):
+        assert lib.ignore_key('mobile/android_events/v1/channel=aurora/submission=20160919/_temporary/0_$folder$'), "Did not ignore temporary dir file"
+
+    def test_ignore_metadata_file(self):
+        assert lib.ignore_key('mobile/android_events/v1/channel=aurora/submission=20160919_$folder$'), "Did not ignore metadata file"
+    
+    def test_no_ignore(self):
+        assert not lib.ignore_key('directory1/directory2/partition=1/file'), "Ignored correct directory"
+
+    def test_ignore_temp_dir(self):
+        assert lib.ignore_key('directory1/directory2/partition=1/_temp/file'), "Did not ignore temporary directory"
+
+    def test_ignore_temp_file(self):
+        assert lib.ignore_key('directory1/directory2/partition=2/_tempfile'), "Did not ignore temporary file"
+
+    def test_ignore_dir(self):
+        assert lib.ignore_key('directory1/directory2/partition=1/'), "Did not ignore directory"
+
 
 
 class TestGetPartitioningFields:
