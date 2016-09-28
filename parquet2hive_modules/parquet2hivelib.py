@@ -34,6 +34,8 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
     for version in versions:
         success_exists = False
         version_prefix = prefix + '/' + version + '/'
+        dataset_name = prefix.split('/')[-1]
+
         keys = sorted(bucket.objects.filter(Prefix=version_prefix), key = lambda obj : obj.last_modified, reverse = True)
 
         for key in keys:
@@ -55,7 +57,7 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
                 sys.stderr.write("Ignoring empty dataset\n")
             continue
 
-        sys.stderr.write("Analyzing dataset {}, {}\n".format(prefix, version))
+        sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
         s3_client = boto3.client('s3')
         tmp_file = NamedTemporaryFile()
         s3_client.download_file(key.bucket_name, key.key, tmp_file.name)
@@ -64,9 +66,9 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
         schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
-        bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, prefix, version, dataset, partitions)) + '\n'
+        bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
         if versions_loaded == 0:  # Most recent version
-            bash_cmd += "hive -e '{}'".format(avro2sql(schema, prefix, version, dataset, partitions, with_version=False)) + '\n'
+            bash_cmd += "hive -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions, with_version=False)) + '\n'
 
         versions_loaded += 1
         if recent_versions is not None and versions_loaded >= recent_versions:
@@ -89,7 +91,12 @@ def get_versions(bucket, prefix):
             sys.stderr.write("Ignoring incompatible versioning scheme\n")
             continue
 
-        dataset_name = tmp[-2]
+        #we don't yet support importing multiple datasets with a single command
+        dataset_prefix = '/'.join(tmp[:-1])
+        if dataset_prefix != prefix[:-1]:
+            sys.stderr.write("Ignoring dataset nested within prefix. To load this dataset, call p2h on it directly: `parquet2hive s3://{}`\n".format(dataset_prefix))
+            continue
+
         version = tmp[-1]
         if not re.match("^v[0-9]+$", version):
             sys.stderr.write("Ignoring incompatible versioning scheme: version must be an integer prefixed with a 'v'\n")
