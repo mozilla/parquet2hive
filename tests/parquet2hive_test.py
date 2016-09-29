@@ -162,8 +162,22 @@ class TestGetBashCmd:
         assert '`id`' in bash_cmd, 'Column from newer file should be in schema, but is not'
         assert '`country`' not in bash_cmd, 'Column from older file should not be in schema'
 
-        
+ 
+    @mock_s3
+    def test_nested_dataset(self):
+        _setup_module()
 
+        prefix, version, objects = 'prod/churn', 'v1', ['dataset_file'] 
+        filenames = {'dataset_file' : dataset_file, 'new_dataset_file' : new_dataset_file}
+        for _object in objects:
+            key = '/'.join((prefix, version, _object))
+            s3_client.put_object(Bucket = bucket_name, Key = key, Body = open(filenames[_object], 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset)
+
+        assert 'table prod/churn' not in bash_cmd
+        assert 'table churn' in bash_cmd 
 
 class TestGetVersions:
 
@@ -201,6 +215,21 @@ class TestGetVersions:
             s3_client.put_object(Bucket = bucket_name, Key = k, Body = b'teststring')
 
         assert lib.get_versions(bucket, prefix) == ['v2', 'v1'], 'versions not returned in descending order'
+
+    @mock_s3
+    def test_ignore_nested_dataset(self):
+        _setup_module()
+
+        prefix, version, objects = 'prod/churn', 'v1', ['dataset_file'] 
+        for _object in objects:
+            key = '/'.join((prefix, version, _object))
+            s3_client.put_object(Bucket = bucket_name, Key = key, Body = open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, 'prod'))
+
+        assert lib.get_versions(bucket, 'prod')  == [], 'Should ignore nested dataset that is not explicitly identified'
+
+
 
 class TestSuccessExists:
 
