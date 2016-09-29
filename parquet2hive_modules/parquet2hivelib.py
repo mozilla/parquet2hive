@@ -21,6 +21,9 @@ ignore_patterns = [
 udf = {}
 
 def get_bash_cmd(dataset, success_only = False, recent_versions = None, version = None):
+    if dataset.endswith('/'):
+        dataset = dataset[:-1]
+
     m = re.search("s3://([^/]*)/(.*)", dataset)
     bucket_name = m.group(1)
     prefix = m.group(2)

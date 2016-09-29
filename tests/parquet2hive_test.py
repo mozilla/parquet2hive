@@ -37,6 +37,20 @@ class TestGetBashCmd:
         assert 'drop table if exists churn_v2' in bash_cmd, 'Should drop table with version'
         assert 'create external table churn_v2' in bash_cmd, 'Should create table with version'
 
+
+    @mock_s3
+    def test_with_single_file_end_in_slash(self):
+        _setup_module()
+        
+        prefix, version, objectname = 'churn', 'v2', 'parquet'
+        s3_client.put_object(Bucket = bucket_name, Key = '/'.join((prefix, version, objectname)), Body = open(dataset_file, 'rb'))
+        
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset + '/')
+
+        assert bash_cmd.startswith('hive'), 'Should be a valid hive command'
+
+
     @mock_s3
     def test_dataset_version(self):
         _setup_module()
