@@ -62,8 +62,8 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
         tmp_file = NamedTemporaryFile()
         s3_client.download_file(key.bucket_name, key.key, tmp_file.name)
 
-        meta = os.popen("java -jar {} meta {}".format(find_jar_path(), tmp_file.name)).read()
-        schema = json.loads("{" + re.search("(org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = {(.+)}", meta).group(2) + "}")
+        schema = read_schema(tmp_file.name)
+
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
         bash_cmd += "hive -hiveconf hive.support.sql11.reserved.keywords=false -e '{}'".format(avro2sql(schema, dataset_name, version, dataset, partitions)) + '\n'
@@ -75,6 +75,17 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
             break
 
     return bash_cmd
+
+
+def read_schema(file_name):
+    # run jar file and read output
+    meta = os.popen("java -jar {} meta {}".format(find_jar_path(), file_name)).read()
+
+    # search for metadata match in output
+    matches = re.search('(?:org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = ({.+})', meta)
+
+    # parse match as json and return
+    return json.loads(matches.group(1))
 
 
 def get_versions(bucket, prefix):

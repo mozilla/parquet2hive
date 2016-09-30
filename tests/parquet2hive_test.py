@@ -371,9 +371,46 @@ class TestTransformType:
         assert lib.transform_type(avro) == 'struct<`field1`: bigint, `field2`: timestamp>', 'Struct with two fields did not return correct schema'
 
 
-
 class TestJarFile:
 
     def test_find_jar(self):
         assert lib.find_jar_path(), 'Did not find jar!'
 
+
+class TestReadSchema:
+
+    def test_read_dataset_schema(self):
+        schema = {
+            u'fields': [
+                {u'metadata': {}, u'type': u'string', u'name': u'clientId', u'nullable': True},
+                {u'metadata': {}, u'type': u'integer', u'name': u'sampleId', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'channel', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'normalizedChannel', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'country', u'nullable': True},
+                {u'metadata': {}, u'type': u'integer', u'name': u'profileCreationDate', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'subsessionStartDate', u'nullable': True},
+                {u'metadata': {}, u'type': u'integer', u'name': u'subsessionLength', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'distributionId', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'submissionDate', u'nullable': True},
+                {u'metadata': {}, u'type': u'boolean', u'name': u'syncConfigured', u'nullable': True},
+                {u'metadata': {}, u'type': u'integer', u'name': u'syncCountDesktop', u'nullable': True},
+                {u'metadata': {}, u'type': u'integer', u'name': u'syncCountMobile', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'version', u'nullable': True},
+                {u'metadata': {}, u'type': u'long', u'name': u'timestamp', u'nullable': True},
+                {u'metadata': {}, u'type': u'boolean', u'name': u'e10sEnabled', u'nullable': True},
+                {u'metadata': {}, u'type': u'string', u'name': u'e10sCohort', u'nullable': True}
+            ],
+            u'type': u'struct'
+        }
+
+        assert lib.read_schema(dataset_file) == schema
+
+    def test_read_dataset_new_schema(self):
+        schema = {
+            u'fields': [
+                {u'metadata': {}, u'type': u'long', u'name': u'id', u'nullable': True}
+            ],
+            u'type': u'struct'
+        }
+
+        assert lib.read_schema(new_dataset_file) == schema
