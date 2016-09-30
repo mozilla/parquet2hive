@@ -1,4 +1,4 @@
-# parquet2hive
+# parquet2hive [![Build Status](https://travis-ci.org/mozilla/parquet2hive.svg?branch=master)](https://travis-ci.org/mozilla/parquet2hive)
 Hive import statement generator for Parquet datasets. Supports versioned datasets and schema evolution.
 
 ## Installing from Pypi 
