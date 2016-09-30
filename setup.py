@@ -11,4 +11,4 @@ setup(name='parquet2hive',
       packages=['parquet2hive_modules'],
       install_requires=['boto3', 'functools32'],
       setup_requires=['pytest-runner'],
-      tests_require=['pytest'])
+      tests_require=['pytest', 'moto'])
