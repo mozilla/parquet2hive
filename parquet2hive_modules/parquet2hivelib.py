@@ -1,12 +1,16 @@
 import boto3
 import botocore
 import re
-import os
 import json
 import sys
+import struct
 
 from functools32 import lru_cache
 from tempfile import NamedTemporaryFile
+
+from thrift.protocol import TCompactProtocol
+from thrift.transport import TTransport
+from parquet_format.ttypes import FileMetaData
 
 ignore_patterns = [
     r'.*/$', #dirs
@@ -78,14 +82,27 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
 
 
 def read_schema(file_name):
-    # run jar file and read output
-    meta = os.popen("java -jar {} meta {}".format(find_jar_path(), file_name)).read()
+    # open file
+    fileobj = open(file_name, 'rb')
 
-    # search for metadata match in output
-    matches = re.search('(?:org.apache.spark.sql.parquet.row.metadata|parquet.avro.schema) = ({.+})', meta)
+    # read footer size
+    fileobj.seek(-8, 2)
+    footer_size = struct.unpack('<i', fileobj.read(4))[0]
 
-    # parse match as json and return
-    return json.loads(matches.group(1))
+    # seek to beginning of footer
+    fileobj.seek(-8 - footer_size, 2)
+
+    # read metadata
+    transport = TTransport.TFileObjectTransport(fileobj)
+    protocol = TCompactProtocol.TCompactProtocol(transport)
+    metadata = FileMetaData()
+    metadata.read(protocol)
+
+    # close file
+    fileobj.close()
+
+    # parse as json and return
+    return json.loads(metadata.key_value_metadata[0].value)
 
 
 def get_versions(bucket, prefix):
@@ -139,24 +156,6 @@ def check_success_exists(s3, bucket, prefix):
 
 def ignore_key(key):
     return any( [re.match(pat, key) for pat in ignore_patterns] )
-
-def find_jar_path():
-    paths = []
-    jar_file = "parquet-tools.jar"
-    lib_dir = 'parquet2hive_modules/'
-
-    paths.append(jar_file)
-    paths.append(lib_dir + jar_file)
-    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../" + lib_dir + jar_file))
-    paths.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../share/" + lib_dir + jar_file))
-    paths.append("../../../current-release/" + jar_file)
-    paths.append(os.path.join(sys.prefix, "share/" + lib_dir + jar_file))
-
-    for path in paths:
-        if os.path.exists(path):
-            return path
-
-    raise Exception("Failure to locate parquet-tools.jar")
 
 def get_partitioning_fields(prefix):
     return re.findall("([^=/]+)=[^=/]+", prefix)

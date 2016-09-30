@@ -371,12 +371,6 @@ class TestTransformType:
         assert lib.transform_type(avro) == 'struct<`field1`: bigint, `field2`: timestamp>', 'Struct with two fields did not return correct schema'
 
 
-class TestJarFile:
-
-    def test_find_jar(self):
-        assert lib.find_jar_path(), 'Did not find jar!'
-
-
 class TestReadSchema:
 
     def test_read_dataset_schema(self):
