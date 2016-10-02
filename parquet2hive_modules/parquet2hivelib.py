@@ -13,14 +13,14 @@ from thrift.transport import TTransport
 from parquet_format.ttypes import FileMetaData
 
 ignore_patterns = [
-    r'.*/$', #dirs
-    r'.*/_', #temp dirs and files
-    r'.*/[^/]*\$folder\$/?' #metadata dirs and files 
+    r'.*/$',  # dirs
+    r'.*/_',  # temp dirs and files
+    r'.*/[^/]*\$folder\$/?'  # metadata dirs and files
 ]
 
 udf = {}
 
-def get_bash_cmd(dataset, success_only = False, recent_versions = None, version = None):
+def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None):
     if dataset.endswith('/'):
         dataset = dataset[:-1]
 
@@ -43,7 +43,7 @@ def get_bash_cmd(dataset, success_only = False, recent_versions = None, version 
         version_prefix = prefix + '/' + version + '/'
         dataset_name = prefix.split('/')[-1]
 
-        keys = sorted(bucket.objects.filter(Prefix=version_prefix), key = lambda obj : obj.last_modified, reverse = True)
+        keys = sorted(bucket.objects.filter(Prefix=version_prefix), key=lambda obj: obj.last_modified, reverse=True)
 
         for key in keys:
             if ignore_key(key.key):
@@ -113,7 +113,7 @@ def get_versions(bucket, prefix):
         prefix = prefix + '/'
 
     xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix)
-    tentative = [ o.get('Prefix') for o in xs.get('CommonPrefixes', []) ]
+    tentative = [o.get('Prefix') for o in xs.get('CommonPrefixes', [])]
 
     versions = []
     for version_prefix in tentative:
@@ -122,7 +122,7 @@ def get_versions(bucket, prefix):
             sys.stderr.write("Ignoring incompatible versioning scheme\n")
             continue
 
-        #we don't yet support importing multiple datasets with a single command
+        # we don't yet support importing multiple datasets with a single command
         dataset_prefix = '/'.join(tmp[:-1])
         if dataset_prefix != prefix[:-1]:
             sys.stderr.write("Ignoring dataset nested within prefix. To load this dataset, call p2h on it directly: `parquet2hive s3://{}`\n".format(dataset_prefix))
@@ -135,9 +135,10 @@ def get_versions(bucket, prefix):
 
         versions.append(version)
 
-    return sorted(versions, key = lambda x : int(x[1:]), reverse = True)
+    return sorted(versions, key=lambda x: int(x[1:]), reverse=True)
 
-@lru_cache(maxsize = 64)
+
+@lru_cache(maxsize=64)
 def check_success_exists(s3, bucket, prefix):
     if not prefix.endswith('/'):
         prefix = prefix + '/'
@@ -146,7 +147,7 @@ def check_success_exists(s3, bucket, prefix):
     exists = False
 
     try:
-        res = s3.Object(bucket, success_obj_loc).load()
+        s3.Object(bucket, success_obj_loc).load()
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == "404":
             exists = False
@@ -157,8 +158,10 @@ def check_success_exists(s3, bucket, prefix):
 
     return exists
 
+
 def ignore_key(key):
-    return any( [re.match(pat, key) for pat in ignore_patterns] )
+    return any([re.match(pat, key) for pat in ignore_patterns])
+
 
 def get_partitioning_fields(prefix):
     return re.findall("([^=/]+)=[^=/]+", prefix)
@@ -190,23 +193,23 @@ def transform_type(avro):
     is_dict, is_list, is_str = isinstance(avro, dict), isinstance(avro, list), isinstance(avro, str) or isinstance(avro, unicode)
 
     unchanged_types = ['string', 'int', 'float', 'double', 'boolean', 'date', 'timestamp', 'binary']
-    mapped_types = {'integer' : 'int', 'long' : 'bigint'}
+    mapped_types = {'integer': 'int', 'long': 'bigint'}
 
     if is_str and avro in unchanged_types:
         sql_type = avro
     elif is_str and avro in mapped_types:
         sql_type = mapped_types[avro]
     elif is_dict and avro["type"] == "map":
-        value_type = avro.get("values", avro.get("valueType")) # this can differ depending on the Avro schema version
+        value_type = avro.get("values", avro.get("valueType"))  # this can differ depending on the Avro schema version
         sql_type = "map<string,{}>".format(transform_type(value_type))
     elif is_dict and avro["type"] == "array":
-        item_type = avro.get("items", avro.get("elementType")) # this can differ depending on the Avro schema version
+        item_type = avro.get("items", avro.get("elementType"))  # this can differ depending on the Avro schema version
         sql_type = "array<{}>".format(transform_type(item_type))
     elif is_dict and avro["type"] in ("record", "struct"):
         fields_decl = ", ".join(["`{}`: {}".format(field["name"], transform_type(field["type"])) for field in avro["fields"]])
         sql_type = "struct<{}>".format(fields_decl)
         if avro["type"] == "record":
-            udf[avro["name"]] = sql_type 
+            udf[avro["name"]] = sql_type
     elif is_list:
         sql_type = transform_type(avro[0] if avro[1] == "null" else avro[1])
     elif avro in udf:
@@ -215,5 +218,3 @@ def transform_type(avro):
         raise Exception("Unknown type {}".format(avro))
 
     return sql_type
-
-

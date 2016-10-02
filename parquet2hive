@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
+import sys
+
 from parquet2hive_modules import parquet2hivelib as lib
 
 if __name__ == "__main__":
@@ -8,16 +10,16 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('dataset', nargs=1, metavar=('dataset',),
-            help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
+                        help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
 
     parser.add_argument('--success-only', '-so', action='store_true',
-            help='Only process partitions that contain a _SUCCESS file')
+                        help='Only process partitions that contain a _SUCCESS file')
 
     parser.add_argument('--dataset-version', '-dv', default=None,
-            help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514. Cannot be used with --use-last-versions" )
+                        help="Specify version of the dataset to use with format vyyyymmdd, e.g. v20160514. Cannot be used with --use-last-versions")
 
     parser.add_argument('--use-last-versions', '-ulv', nargs='?', const=1, type=int, default=None,
-            help='Load only the most recent version of the dataset, cannot be used with --dataset-version. Defaults to 1')
+                        help='Load only the most recent version of the dataset, cannot be used with --dataset-version. Defaults to 1')
 
     args = parser.parse_args()
 
