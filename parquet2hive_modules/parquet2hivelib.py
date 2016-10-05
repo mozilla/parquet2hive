@@ -6,7 +6,6 @@ import sys
 import struct
 
 from functools32 import lru_cache
-from tempfile import NamedTemporaryFile
 
 from thrift.protocol import TCompactProtocol
 from thrift.transport import TTransport
@@ -83,28 +82,22 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
 
 
 def read_schema(s3obj):
-    # download file
-    tmp_file = NamedTemporaryFile()
-    s3obj.download_file(tmp_file.name)
+    # get object size
+    object_size = s3obj.content_length
 
-    # open file
-    fileobj = open(tmp_file.name, 'rb')
+    # get footer size
+    response = s3obj.get(Range='bytes={}-'.format(object_size - 8))
+    footer_size = struct.unpack('<i', response['Body'].read(4))[0]
 
-    # read footer size
-    fileobj.seek(-8, 2)
-    footer_size = struct.unpack('<i', fileobj.read(4))[0]
+    # read footer
+    response = s3obj.get(Range='bytes={}-'.format(object_size - 8 - footer_size))
+    footer = response['Body']
 
-    # seek to beginning of footer
-    fileobj.seek(-8 - footer_size, 2)
-
-    # read metadata
-    transport = TTransport.TFileObjectTransport(fileobj)
+    # read metadata from footer
+    transport = TTransport.TFileObjectTransport(footer)
     protocol = TCompactProtocol.TCompactProtocol(transport)
     metadata = FileMetaData()
     metadata.read(protocol)
-
-    # close file
-    fileobj.close()
 
     # parse as json and return
     return json.loads(metadata.key_value_metadata[0].value)
