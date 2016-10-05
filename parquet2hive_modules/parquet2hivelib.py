@@ -20,6 +20,7 @@ ignore_patterns = [
 
 udf = {}
 
+
 def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None):
     if dataset.endswith('/'):
         dataset = dataset[:-1]
@@ -65,11 +66,8 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
             continue
 
         sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
-        s3_client = boto3.client('s3')
-        tmp_file = NamedTemporaryFile()
-        s3_client.download_file(key.bucket_name, key.key, tmp_file.name)
 
-        schema = read_schema(tmp_file.name)
+        schema = read_schema(key.Object())
 
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
@@ -84,9 +82,13 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
     return bash_cmd
 
 
-def read_schema(file_name):
+def read_schema(s3obj):
+    # download file
+    tmp_file = NamedTemporaryFile()
+    s3obj.download_file(tmp_file.name)
+
     # open file
-    fileobj = open(file_name, 'rb')
+    fileobj = open(tmp_file.name, 'rb')
 
     # read footer size
     fileobj.seek(-8, 2)
