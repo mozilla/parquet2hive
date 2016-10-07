@@ -6,7 +6,6 @@ import sys
 import struct
 
 from functools32 import lru_cache
-from tempfile import NamedTemporaryFile
 
 from thrift.protocol import TCompactProtocol
 from thrift.transport import TTransport
@@ -19,6 +18,11 @@ ignore_patterns = [
 ]
 
 udf = {}
+
+
+class ParquetFormatError(Exception):
+    pass
+
 
 def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None):
     if dataset.endswith('/'):
@@ -65,11 +69,8 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
             continue
 
         sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
-        s3_client = boto3.client('s3')
-        tmp_file = NamedTemporaryFile()
-        s3_client.download_file(key.bucket_name, key.key, tmp_file.name)
 
-        schema = read_schema(tmp_file.name)
+        schema = read_schema(key.Object())
 
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
@@ -84,25 +85,36 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
     return bash_cmd
 
 
-def read_schema(file_name):
-    # open file
-    fileobj = open(file_name, 'rb')
+def read_schema(s3obj):
+    # get object size
+    object_size = s3obj.content_length
 
-    # read footer size
-    fileobj.seek(-8, 2)
-    footer_size = struct.unpack('<i', fileobj.read(4))[0]
+    # raise error if object is too small
+    if object_size < 8:
+        raise ParquetFormatError('file is too small')
 
-    # seek to beginning of footer
-    fileobj.seek(-8 - footer_size, 2)
+    # get footer size
+    response = s3obj.get(Range='bytes={}-'.format(object_size - 8))
+    footer_size = struct.unpack('<i', response['Body'].read(4))[0]
+    magic_number = response['Body'].read(4)
 
-    # read metadata
-    transport = TTransport.TFileObjectTransport(fileobj)
+    # raise error if object is too small
+    if object_size < (8 + footer_size):
+        raise ParquetFormatError('file is too small')
+
+    # raise error if magic number is bad
+    if magic_number != 'PAR1':
+        raise ParquetFormatError('magic number is invalid')
+
+    # read footer
+    response = s3obj.get(Range='bytes={}-'.format(object_size - 8 - footer_size))
+    footer = response['Body']
+
+    # read metadata from footer
+    transport = TTransport.TFileObjectTransport(footer)
     protocol = TCompactProtocol.TCompactProtocol(transport)
     metadata = FileMetaData()
     metadata.read(protocol)
-
-    # close file
-    fileobj.close()
 
     # parse as json and return
     return json.loads(metadata.key_value_metadata[0].value)

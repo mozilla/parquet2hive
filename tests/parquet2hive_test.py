@@ -2,6 +2,7 @@ import boto3
 from moto import mock_s3
 from parquet2hive_modules import parquet2hivelib as lib
 from time import sleep
+import pytest
 
 
 def _setup_module():
@@ -39,19 +40,17 @@ class TestGetBashCmd:
         assert 'drop table if exists churn_v2' in bash_cmd, 'Should drop table with version'
         assert 'create external table churn_v2' in bash_cmd, 'Should create table with version'
 
-
     @mock_s3
     def test_with_single_file_end_in_slash(self):
         _setup_module()
-        
+
         prefix, version, objectname = 'churn', 'v2', 'parquet'
-        s3_client.put_object(Bucket = bucket_name, Key = '/'.join((prefix, version, objectname)), Body = open(dataset_file, 'rb'))
-        
+        s3_client.put_object(Bucket=bucket_name, Key='/'.join((prefix, version, objectname)), Body=open(dataset_file, 'rb'))
+
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset + '/')
 
         assert bash_cmd.startswith('hive'), 'Should be a valid hive command'
-
 
     @mock_s3
     def test_dataset_version(self):
@@ -382,40 +381,82 @@ class TestTransformType:
         assert lib.transform_type(avro) == 'struct<`field1`: bigint, `field2`: timestamp>', 'Struct with two fields did not return correct schema'
 
 
+DATASET_SCHEMA = {
+    u'fields': [
+        {u'metadata': {}, u'type': u'string', u'name': u'clientId', u'nullable': True},
+        {u'metadata': {}, u'type': u'integer', u'name': u'sampleId', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'channel', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'normalizedChannel', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'country', u'nullable': True},
+        {u'metadata': {}, u'type': u'integer', u'name': u'profileCreationDate', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'subsessionStartDate', u'nullable': True},
+        {u'metadata': {}, u'type': u'integer', u'name': u'subsessionLength', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'distributionId', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'submissionDate', u'nullable': True},
+        {u'metadata': {}, u'type': u'boolean', u'name': u'syncConfigured', u'nullable': True},
+        {u'metadata': {}, u'type': u'integer', u'name': u'syncCountDesktop', u'nullable': True},
+        {u'metadata': {}, u'type': u'integer', u'name': u'syncCountMobile', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'version', u'nullable': True},
+        {u'metadata': {}, u'type': u'long', u'name': u'timestamp', u'nullable': True},
+        {u'metadata': {}, u'type': u'boolean', u'name': u'e10sEnabled', u'nullable': True},
+        {u'metadata': {}, u'type': u'string', u'name': u'e10sCohort', u'nullable': True}
+    ],
+    u'type': u'struct'
+}
+
+NEW_DATASET_SCHEMA = {
+    u'fields': [
+        {u'metadata': {}, u'type': u'long', u'name': u'id', u'nullable': True}
+    ],
+    u'type': u'struct'
+}
+
+
 class TestReadSchema:
 
+    @mock_s3
     def test_read_dataset_schema(self):
-        schema = {
-            u'fields': [
-                {u'metadata': {}, u'type': u'string', u'name': u'clientId', u'nullable': True},
-                {u'metadata': {}, u'type': u'integer', u'name': u'sampleId', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'channel', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'normalizedChannel', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'country', u'nullable': True},
-                {u'metadata': {}, u'type': u'integer', u'name': u'profileCreationDate', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'subsessionStartDate', u'nullable': True},
-                {u'metadata': {}, u'type': u'integer', u'name': u'subsessionLength', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'distributionId', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'submissionDate', u'nullable': True},
-                {u'metadata': {}, u'type': u'boolean', u'name': u'syncConfigured', u'nullable': True},
-                {u'metadata': {}, u'type': u'integer', u'name': u'syncCountDesktop', u'nullable': True},
-                {u'metadata': {}, u'type': u'integer', u'name': u'syncCountMobile', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'version', u'nullable': True},
-                {u'metadata': {}, u'type': u'long', u'name': u'timestamp', u'nullable': True},
-                {u'metadata': {}, u'type': u'boolean', u'name': u'e10sEnabled', u'nullable': True},
-                {u'metadata': {}, u'type': u'string', u'name': u'e10sCohort', u'nullable': True}
-            ],
-            u'type': u'struct'
-        }
+        _setup_module()
 
-        assert lib.read_schema(dataset_file) == schema
+        obj = bucket.Object('my/dataset')
+        with open(dataset_file, 'rb') as fileobj:
+            obj.upload_fileobj(fileobj)
 
-    def test_read_dataset_new_schema(self):
-        schema = {
-            u'fields': [
-                {u'metadata': {}, u'type': u'long', u'name': u'id', u'nullable': True}
-            ],
-            u'type': u'struct'
-        }
+        assert lib.read_schema(obj) == DATASET_SCHEMA
 
-        assert lib.read_schema(new_dataset_file) == schema
+    @mock_s3
+    def test_read_new_dataset_schema(self):
+        _setup_module()
+
+        obj = bucket.Object('my/new-dataset')
+        with open(new_dataset_file, 'rb') as fileobj:
+            obj.upload_fileobj(fileobj)
+
+        assert lib.read_schema(obj) == NEW_DATASET_SCHEMA
+
+    @mock_s3
+    def test_fail_on_bad_magic_number(self):
+        _setup_module()
+
+        obj = bucket.Object('not-parquet')
+        obj.put(Body=b'dootdoot\x04\x00\x00\x00FAIL')
+
+        with pytest.raises(lib.ParquetFormatError) as exc:
+            lib.read_schema(obj)
+        assert 'magic number is invalid' in str(exc.value)
+
+    @mock_s3
+    def test_fail_on_too_small(self):
+        _setup_module()
+
+        obj = bucket.Object('not-parquet')
+
+        obj.put(Body=b'\x00\x00PAR1')
+        with pytest.raises(lib.ParquetFormatError) as exc:
+            lib.read_schema(obj)
+        assert 'file is too small' in str(exc.value)
+
+        obj.put(Body=b'doo\x04\x00\x00\x00PAR1')
+        with pytest.raises(lib.ParquetFormatError) as exc:
+            lib.read_schema(obj)
+        assert 'file is too small' in str(exc.value)
