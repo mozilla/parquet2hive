@@ -2,6 +2,7 @@ import boto3
 from moto import mock_s3
 from parquet2hive_modules import parquet2hivelib as lib
 from time import sleep
+import pytest
 
 
 def _setup_module():
@@ -432,3 +433,13 @@ class TestReadSchema:
             obj.upload_fileobj(fileobj)
 
         assert lib.read_schema(obj) == NEW_DATASET_SCHEMA
+
+    @mock_s3
+    def test_fail_on_bad_parquet(self):
+        _setup_module()
+
+        obj = bucket.Object('not-parquet')
+        obj.put(Body=b'dootdoot\x04\x00\x00\x00FAIL')
+
+        with pytest.raises(lib.ParquetFormatError):
+            lib.read_schema(obj)

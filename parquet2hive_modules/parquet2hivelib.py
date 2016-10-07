@@ -20,6 +20,10 @@ ignore_patterns = [
 udf = {}
 
 
+class ParquetFormatError(Exception):
+    pass
+
+
 def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None):
     if dataset.endswith('/'):
         dataset = dataset[:-1]
@@ -88,6 +92,11 @@ def read_schema(s3obj):
     # get footer size
     response = s3obj.get(Range='bytes={}-'.format(object_size - 8))
     footer_size = struct.unpack('<i', response['Body'].read(4))[0]
+    magic_number = response['Body'].read(4)
+
+    # raise error if magic number is bad
+    if magic_number != 'PAR1':
+        raise ParquetFormatError('magic number is invalid')
 
     # read footer
     response = s3obj.get(Range='bytes={}-'.format(object_size - 8 - footer_size))
