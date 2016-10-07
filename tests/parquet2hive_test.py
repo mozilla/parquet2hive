@@ -435,11 +435,28 @@ class TestReadSchema:
         assert lib.read_schema(obj) == NEW_DATASET_SCHEMA
 
     @mock_s3
-    def test_fail_on_bad_parquet(self):
+    def test_fail_on_bad_magic_number(self):
         _setup_module()
 
         obj = bucket.Object('not-parquet')
         obj.put(Body=b'dootdoot\x04\x00\x00\x00FAIL')
 
-        with pytest.raises(lib.ParquetFormatError):
+        with pytest.raises(lib.ParquetFormatError) as exc:
             lib.read_schema(obj)
+        assert 'magic number is invalid' in str(exc.value)
+
+    @mock_s3
+    def test_fail_on_too_small(self):
+        _setup_module()
+
+        obj = bucket.Object('not-parquet')
+
+        obj.put(Body=b'\x00\x00PAR1')
+        with pytest.raises(lib.ParquetFormatError) as exc:
+            lib.read_schema(obj)
+        assert 'file is too small' in str(exc.value)
+
+        obj.put(Body=b'doo\x04\x00\x00\x00PAR1')
+        with pytest.raises(lib.ParquetFormatError) as exc:
+            lib.read_schema(obj)
+        assert 'file is too small' in str(exc.value)

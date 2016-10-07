@@ -89,10 +89,18 @@ def read_schema(s3obj):
     # get object size
     object_size = s3obj.content_length
 
+    # raise error if object is too small
+    if object_size < 8:
+        raise ParquetFormatError('file is too small')
+
     # get footer size
     response = s3obj.get(Range='bytes={}-'.format(object_size - 8))
     footer_size = struct.unpack('<i', response['Body'].read(4))[0]
     magic_number = response['Body'].read(4)
+
+    # raise error if object is too small
+    if object_size < (8 + footer_size):
+        raise ParquetFormatError('file is too small')
 
     # raise error if magic number is bad
     if magic_number != 'PAR1':
