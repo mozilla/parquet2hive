@@ -43,7 +43,7 @@ python setup.py sdist upload -r https://testpypi.python.org/pypi
 
 Finally, pull the most recent package from the test-repository on any machine using:
 ```bash
-pip install parquet2hive -i https://testpypi.python.org
+pip install parquet2hive -i https://testpypi.python.org/pypi
 ```
 
 ## Example usage
