@@ -24,7 +24,7 @@ class ParquetFormatError(Exception):
     pass
 
 
-def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None, alias=None):
+def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None, alias=None, exclude_regex=None):
     if dataset.endswith('/'):
         dataset = dataset[:-1]
 
@@ -50,7 +50,7 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
         keys = sorted(bucket.objects.filter(Prefix=version_prefix), key=lambda obj: obj.last_modified, reverse=True)
 
         for key in keys:
-            if ignore_key(key.key):
+            if ignore_key(key.key, exclude_regex=exclude_regex):
                 continue
 
             partition = "/".join(key.key.split("/")[:-1])
@@ -171,8 +171,10 @@ def check_success_exists(s3, bucket, prefix):
     return exists
 
 
-def ignore_key(key):
-    return any([re.match(pat, key) for pat in ignore_patterns])
+def ignore_key(key, exclude_regex=None):
+    if exclude_regex is None:
+        exclude_regex = []
+    return any([re.match(pat, key) for pat in ignore_patterns + exclude_regex])
 
 
 def get_partitioning_fields(prefix):

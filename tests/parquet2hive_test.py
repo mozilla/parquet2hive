@@ -208,6 +208,36 @@ class TestGetBashCmd:
         assert 'table burn_v2' in bash_cmd
         assert 'table burn' in bash_cmd
 
+    @mock_s3
+    def test_regex_exclude(self):
+        _setup_module()
+
+        prefix, version_objects = 'churn', ['v1/file', 'v2/DEV_something']
+        for _object in version_objects:
+            key = '/'.join((prefix, _object))
+            s3_client.put_object(Bucket=bucket_name, Key=key, Body=open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset, exclude_regex=['.*DEV.*'])
+        
+        assert 'table churn' in bash_cmd
+        assert 'table churn_v1' in bash_cmd
+        assert 'table churn_v2' not in bash_cmd
+
+    @mock_s3
+    def test_regex_exclude_all(self):
+        _setup_module()
+
+        prefix, version_objects = 'churn', ['v1/file', 'v2/DEV_something']
+        for _object in version_objects:
+            key = '/'.join((prefix, _object))
+            s3_client.put_object(Bucket=bucket_name, Key=key, Body=open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset, exclude_regex=['.*'])
+        
+        assert not bash_cmd
+
 
 class TestGetVersions:
 
