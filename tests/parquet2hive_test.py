@@ -191,6 +191,23 @@ class TestGetBashCmd:
         assert 'table prod/churn' not in bash_cmd
         assert 'table churn' in bash_cmd
 
+    @mock_s3
+    def test_alias(self):
+        _setup_module()
+
+        prefix, versions, _object = 'churn', ['v1', 'v2'], 'dataset_file'
+        for v in versions:
+            key = '/'.join((prefix, v, _object))
+            s3_client.put_object(Bucket=bucket_name, Key=key, Body=open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset, alias='burn')
+
+        assert 'table churn' not in bash_cmd
+        assert 'table burn_v1' in bash_cmd
+        assert 'table burn_v2' in bash_cmd
+        assert 'table burn' in bash_cmd
+
 
 class TestGetVersions:
 

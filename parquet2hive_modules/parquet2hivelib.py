@@ -24,7 +24,7 @@ class ParquetFormatError(Exception):
     pass
 
 
-def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None):
+def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None, alias=None):
     if dataset.endswith('/'):
         dataset = dataset[:-1]
 
@@ -45,7 +45,7 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
     for version in versions:
         success_exists = False
         version_prefix = prefix + '/' + version + '/'
-        dataset_name = prefix.split('/')[-1]
+        dataset_name = prefix.split('/')[-1] if alias is None else alias
 
         keys = sorted(bucket.objects.filter(Prefix=version_prefix), key=lambda obj: obj.last_modified, reverse=True)
 

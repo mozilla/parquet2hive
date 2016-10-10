@@ -21,6 +21,10 @@ if __name__ == "__main__":
     parser.add_argument('--use-last-versions', '-ulv', nargs='?', const=1, type=int, default=None,
                         help='Load only the most recent version of the dataset, cannot be used with --dataset-version. Defaults to 1')
 
+    parser.add_argument('--alias', type=str, default=None,
+                        help='Use an alternate name for this dataset')
+
+
     args = parser.parse_args()
 
     if args.use_last_versions and args.dataset_version is not None:
@@ -28,7 +32,7 @@ if __name__ == "__main__":
         sys.exit()
 
     try:
-        print lib.get_bash_cmd(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version)
+        print lib.get_bash_cmd(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version, args.alias)
     except Exception as e:
         print "Failure to parse dataset, {}".format(str(e))
         exit(-1)
