@@ -19,19 +19,32 @@ ignore_patterns = [
 
 udf = {}
 
-
 class ParquetFormatError(Exception):
     pass
 
+def load_prefix(s3_loc, success_only=None, recent_versions=None, exclude_regex=None):
+    """Get a bash command which will load every dataset in a bucket at a prefix.
+
+    For this to work, all datasets must be of the form `s3://$BUCKET_NAME/$PREFIX/$DATASET_NAME/v$VERSION/$PARTITIONS`.
+    Any other formats will be ignored.
+
+    :param bucket_name
+    :param prefix
+    """
+    bucket_name, prefix = _get_bucket_and_prefix(s3_loc)
+    datasets = _get_common_prefixes(bucket_name, prefix)
+    bash_cmd = ''
+
+    for dataset in datasets:
+        try:
+            bash_cmd += get_bash_cmd('s3://{}/{}'.format(bucket_name, dataset),
+                                     success_only=success_only, recent_versions=recent_versions, exclude_regex=exclude_regex)
+        except Exception as e:
+            sys.stderr.write('Failed to process {}, {}\n'.format(dataset, str(e)))
+    return bash_cmd
 
 def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None, alias=None, exclude_regex=None):
-    if dataset.endswith('/'):
-        dataset = dataset[:-1]
-
-    m = re.search("s3://([^/]*)/(.*)", dataset)
-    bucket_name = m.group(1)
-    prefix = m.group(2)
-
+    bucket_name, prefix = _get_bucket_and_prefix(dataset)
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     versions = get_versions(bucket, prefix)
@@ -121,8 +134,7 @@ def read_schema(s3obj):
 
 
 def get_versions(bucket, prefix):
-    if not prefix.endswith('/'):
-        prefix = prefix + '/'
+    prefix = _remove_trailing_backslash(prefix) + '/'
 
     xs = bucket.meta.client.list_objects(Bucket=bucket.name, Delimiter='/', Prefix=prefix)
     tentative = [o.get('Prefix') for o in xs.get('CommonPrefixes', [])]
@@ -232,3 +244,22 @@ def transform_type(avro):
         raise Exception("Unknown type {}".format(avro))
 
     return sql_type
+
+def _remove_trailing_backslash(location):
+    if location.endswith('/'):
+        return location[:-1]
+    return location
+
+def _get_bucket_and_prefix(s3_loc):
+    m = re.search("s3://([^/]*)/?(.*)", _remove_trailing_backslash(s3_loc))
+    bucket_name = m.group(1)
+    prefix = m.group(2)
+    return bucket_name, prefix
+
+def _get_common_prefixes(bucket, prefix=''):
+    if prefix:
+        prefix = _remove_trailing_backslash(prefix) + '/'
+    client = boto3.client('s3')
+    result = client.list_objects(Bucket=bucket, Prefix=prefix, Delimiter='/')
+    return [prefix.get('Prefix') for prefix in result.get('CommonPrefixes', [])]
+
