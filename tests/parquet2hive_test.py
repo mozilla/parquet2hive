@@ -21,6 +21,66 @@ def _setup_module():
     dataset_file = 'tests/dataset.parquet'
     new_dataset_file = 'tests/dataset-new.parquet'
 
+class TestLoadBucket:
+
+    @mock_s3
+    def test_load_prefix_no_prefix(self):
+        _setup_module()
+
+        objects = ['churn/v1/parquet', 'frank/v1/parquet']
+        for o in objects:
+            s3_client.put_object(Bucket=bucket_name, Key=o, Body=open(dataset_file, 'rb'))
+
+        bash_cmd = lib.load_prefix('s3://' + bucket_name)
+
+        assert 'drop table if exists churn' in bash_cmd
+        assert 'create external table churn' in bash_cmd
+        assert 'create external table churn_v1' in bash_cmd
+        assert 'drop table if exists frank' in bash_cmd
+        assert 'create external table frank' in bash_cmd
+        assert 'create external table frank_v1' in bash_cmd
+
+    @mock_s3
+    def test_load_prefix_incorrect_layout(self):
+        _setup_module()
+
+        objects = ['temp/churn/v1/parquet', 'temp/frank/v1/partquet']
+        for o in objects:
+            s3_client.put_object(Bucket=bucket_name, Key=o, Body=open(dataset_file, 'rb'))
+
+        bash_cmd = lib.load_prefix('s3://' + bucket_name)
+        assert not bash_cmd
+
+    @mock_s3
+    def test_load_prefix_with_prefix(self):
+        _setup_module()
+
+        objects = ['temp/churn/v1/parquet', 'temp/frank/v1/parquet']
+        for o in objects:
+            s3_client.put_object(Bucket=bucket_name, Key=o, Body=open(dataset_file, 'rb'))
+
+        bash_cmd = lib.load_prefix('s3://{}/{}'.format(bucket_name, 'temp'))
+
+        assert 'drop table if exists churn' in bash_cmd
+        assert 'create external table churn' in bash_cmd
+        assert 'create external table churn_v1' in bash_cmd
+        assert 'drop table if exists frank' in bash_cmd
+        assert 'create external table frank' in bash_cmd
+        assert 'create external table frank_v1' in bash_cmd
+
+    @mock_s3
+    def test_load_prefix_ignore_dir(self):
+        _setup_module()
+
+        objects = ['temp/churn/v1/parquet', 'temp/frank/v1/parquet', 'tester/v1/parquet']
+        for o in objects:
+            s3_client.put_object(Bucket=bucket_name, Key=o, Body=open(dataset_file, 'rb'))
+
+        bash_cmd = lib.load_prefix('s3://{}/{}'.format(bucket_name, 'temp'))
+        assert 'drop table if exists tester' not in bash_cmd
+        assert 'create external table churn' in bash_cmd
+        assert 'create external table frank' in bash_cmd
+
 
 class TestGetBashCmd:
 
