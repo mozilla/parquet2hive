@@ -20,6 +20,7 @@ def _setup_module():
     bucket = s3.Bucket(bucket_name)
     dataset_file = 'tests/dataset.parquet'
     new_dataset_file = 'tests/dataset-new.parquet'
+    lib.check_success_exists.cache_clear()
 
 class TestLoadBucket:
 
