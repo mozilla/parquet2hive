@@ -12,6 +12,9 @@ if __name__ == "__main__":
     parser.add_argument('dataset', nargs=1, metavar=('dataset',),
                         help="S3 path to Parquet dataset with the following layout s3://BUCKET/DATASET/vVERSION/DIM=VALUE/.../DIM=VALUE/FILE")
 
+    parser.add_argument('--all', action='store_true',
+                        help='Process all datasets at this s3 location')
+
     parser.add_argument('--success-only', '-so', action='store_true',
                         help='Only process partitions that contain a _SUCCESS file')
 
@@ -29,12 +32,23 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.all and (args.dataset_version is not None or args.alias is not None):
+        sys.stderr.write('Cannot use dataset-version or alias options with --all')
+        sys.exit()
+
     if args.use_last_versions and args.dataset_version is not None:
         sys.stderr.write('Cannot use both --dataset-version and --use-last-versions')
         sys.exit()
 
-    try:
-        print lib.get_bash_cmd(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version, args.alias, args.exclude_regex)
-    except Exception as e:
-        print "Failure to parse dataset, {}".format(str(e))
-        exit(-1)
+    if args.all:
+        try:
+            print lib.load_prefix(args.dataset[0], args.success_only, args.use_last_versions, args.exclude_regex)
+        except Exception as e:
+            print "Failed to load prefix, {}".format(str(e))
+            exit(-1)
+    else:
+        try:
+            print lib.get_bash_cmd(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version, args.alias, args.exclude_regex)
+        except Exception as e:
+            print "Failure to parse dataset, {}".format(str(e))
+            exit(-1)
