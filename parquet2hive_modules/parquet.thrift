@@ -174,7 +174,13 @@ enum ConvertedType {
    * particular timezone or date.
    */
   INTERVAL = 21;
-  
+
+  /**
+   * Annotates a column that is always null
+   * Sometimes when discovering the schema of existing data
+   * values are always null
+   */
+  NULL = 25;
 }
 
 /**
@@ -322,6 +328,7 @@ enum CompressionCodec {
   SNAPPY = 1;
   GZIP = 2;
   LZO = 3;
+  BROTLI = 4;
 }
 
 enum PageType {
