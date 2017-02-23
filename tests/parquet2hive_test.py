@@ -520,7 +520,7 @@ NEW_DATASET_SCHEMA = {
 }
 
 
-class TestReadSchema:
+class TestReadSparkSchema:
 
     @mock_s3
     def test_read_dataset_schema(self):
@@ -529,8 +529,7 @@ class TestReadSchema:
         obj = bucket.Object('my/dataset')
         with open(dataset_file, 'rb') as fileobj:
             obj.upload_fileobj(fileobj)
-
-        assert lib.read_schema(obj) == DATASET_SCHEMA
+        assert lib.read_spark_schema(obj) == DATASET_SCHEMA
 
     @mock_s3
     def test_read_new_dataset_schema(self):
@@ -540,7 +539,7 @@ class TestReadSchema:
         with open(new_dataset_file, 'rb') as fileobj:
             obj.upload_fileobj(fileobj)
 
-        assert lib.read_schema(obj) == NEW_DATASET_SCHEMA
+        assert lib.read_spark_schema(obj) == NEW_DATASET_SCHEMA
 
     @mock_s3
     def test_fail_on_bad_magic_number(self):
@@ -550,7 +549,7 @@ class TestReadSchema:
         obj.put(Body=b'dootdoot\x04\x00\x00\x00FAIL')
 
         with pytest.raises(lib.ParquetFormatError) as exc:
-            lib.read_schema(obj)
+            lib.read_spark_schema(obj)
         assert 'magic number is invalid' in str(exc.value)
 
     @mock_s3
@@ -561,10 +560,10 @@ class TestReadSchema:
 
         obj.put(Body=b'\x00\x00PAR1')
         with pytest.raises(lib.ParquetFormatError) as exc:
-            lib.read_schema(obj)
+            lib.read_spark_schema(obj)
         assert 'file is too small' in str(exc.value)
 
         obj.put(Body=b'doo\x04\x00\x00\x00PAR1')
         with pytest.raises(lib.ParquetFormatError) as exc:
-            lib.read_schema(obj)
+            lib.read_spark_schema(obj)
         assert 'file is too small' in str(exc.value)

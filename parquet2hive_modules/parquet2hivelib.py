@@ -43,6 +43,34 @@ def load_prefix(s3_loc, success_only=None, recent_versions=None, exclude_regex=N
             sys.stderr.write('Failed to process {}, {}\n'.format(dataset, str(e)))
     return bash_cmd
 
+
+def get_direct_bash_cmd(location, alias=None):
+    bucket_name, prefix = _get_bucket_and_prefix(location)
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(bucket_name)
+
+    table_name = prefix.split('/')[-1] if alias is None else alias
+    s3objs = sorted(bucket.objects.filter(Prefix=prefix), key=lambda obj: obj.last_modified)
+
+    if len(s3objs) == 0:
+        sys.stderr.write("Ignoring empty dataset\n")
+        return ''
+
+    s3obj = s3objs[-1]
+
+    partition = '/'.join(s3obj.key.split('/')[:-1])
+
+    sys.stderr.write("Analyzing dataset {}\n".format(table_name))
+
+    schema = read_parquet_schema(s3obj.Object())
+
+    partitions = get_partitioning_fields(s3obj.key[len(prefix):])
+
+    bash_cmd = "hive -e '{}'\n".format(parquet2sql(schema, table_name, location, partitions))
+
+    return bash_cmd
+
+
 def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None, alias=None, exclude_regex=None):
     bucket_name, prefix = _get_bucket_and_prefix(dataset)
     s3 = boto3.resource('s3')
@@ -83,7 +111,7 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
 
         sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
 
-        schema = read_schema(key.Object())
+        schema = read_spark_schema(key.Object())
 
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
@@ -98,7 +126,15 @@ def get_bash_cmd(dataset, success_only=False, recent_versions=None, version=None
     return bash_cmd
 
 
-def read_schema(s3obj):
+def read_spark_schema(s3obj):
+    return json.loads(read_metadata(s3obj).key_value_metadata[0].value)
+
+
+def read_parquet_schema(s3obj):
+    return read_metadata(s3obj).schema
+
+
+def read_metadata(s3obj):
     # get object size
     object_size = s3obj.content_length
 
@@ -129,8 +165,8 @@ def read_schema(s3obj):
     metadata = FileMetaData()
     metadata.read(protocol)
 
-    # parse as json and return
-    return json.loads(metadata.key_value_metadata[0].value)
+    # return metadata
+    return metadata
 
 
 def get_versions(bucket, prefix):
@@ -263,3 +299,95 @@ def _get_common_prefixes(bucket, prefix=''):
     result = client.list_objects(Bucket=bucket, Prefix=prefix, Delimiter='/')
     return [prefix.get('Prefix') for prefix in result.get('CommonPrefixes', [])]
 
+
+PARQUET_CONVERSIONS = {
+    0: 'boolean',
+    1: 'int',
+    2: 'bigint',
+    4: 'float',
+    5: 'double',
+}
+
+
+def parquet2sql(schema, table_name, location, partitions):
+    fields = [parquet2sql_column(*f) for f in parquet2sql_fields(schema[1:], schema[0].num_children)]
+    fields_decl = ", ".join(fields)
+
+    if partitions:
+        columns = ", ".join("{} string".format(p) for p in partitions)
+        partition_decl = " partitioned by ({})".format(columns)
+    else:
+        partition_decl = ""
+
+    return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '\"'{3}'\"'; msck repair table {0};".format(table_name, fields_decl, partition_decl, location)
+
+
+def parquet2sql_fields(schema, children):
+    dictobj = []
+    for _ in range(children):
+        elem = schema.pop(0)
+        data_type = None
+        if elem.type in PARQUET_CONVERSIONS:
+            data_type = (PARQUET_CONVERSIONS[elem.type],)
+        elif elem.type is None:
+            if elem.converted_type in (1, 2):
+                data_type = ("map", parquet2sql_fields(schema, elem.num_children))
+            elif elem.converted_type == 3:
+                data_type = ("array", parquet2sql_fields(schema, elem.num_children))
+            else:
+                data_type = ("struct", parquet2sql_fields(schema, elem.num_children))
+        elif elem.type == 3:
+            raise Exception("int96 primitives are currently unsupported")
+        elif elem.type == 6 and elem.converted_type == 0:
+            data_type = ("string",)
+        if elem.repetition_type == 2:
+            data_type = ("array", data_type)
+        if data_type is not None:
+            dictobj.append((elem.name, data_type))
+        else:
+            raise Exception("can't convert field: {}".format(elem))
+    return dictobj
+
+
+def parquet2sql_column(field_name, data_type, in_struct=False):
+    spacer = ":" if in_struct else ""
+    if data_type[0] == "array":
+        data_type = parquet2sql_array(data_type[1])
+    elif data_type[0] == "map":
+        data_type = parquet2sql_map(data_type[1])
+    elif data_type[0] == "struct":
+        data_type = parquet2sql_struct(data_type[1])
+    else:
+        data_type = data_type[0]
+    return "`{}`{} {}".format(field_name, spacer, data_type)
+
+
+def parquet2sql_array(data_type):
+    if data_type[0] == "array":
+        data_type = parquet2sql_array(data_type[1])
+    elif data_type[0] == "map":
+        data_type = parquet2sql_map(data_type[1])
+    elif data_type[0] == "struct":
+        data_type = parquet2sql_struct(data_type[1])
+    else:
+        data_type = data_type[0]
+    return "array<{}>".format(data_type)
+
+
+def parquet2sql_map(data_type):
+    key_type = data_type[0][1][1][1][0][1][0]
+    val_type = data_type[0][1][1][1][1][1]
+    if val_type[0] == "array":
+        val_type = parquet2sql_array(val_type[1])
+    elif val_type[0] == "map":
+        val_type = parquet2sql_map(val_type[1])
+    elif data_type[0] == "struct":
+        val_type = parquet2sql_struct(val_type[1])
+    else:
+        val_type = val_type[0]
+    return "map<{}, {}>".format(key_type, val_type)
+
+
+def parquet2sql_struct(fields):
+    stmts = [parquet2sql_column(field[0], field[1], True) for field in fields]
+    return "struct<{}>".format(", ".join(stmts))

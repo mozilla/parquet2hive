@@ -30,6 +30,9 @@ if __name__ == "__main__":
     parser.add_argument('--exclude-regex', type=str, default=None, nargs='*',
                         help='A regex pattern which causes any objects that match it to be ignored')
 
+    parser.add_argument('--direct', action='store_true',
+                        help='Handle direct-to-parquet files')
+
     args = parser.parse_args()
 
     if args.all and (args.dataset_version is not None or args.alias is not None):
@@ -40,7 +43,13 @@ if __name__ == "__main__":
         sys.stderr.write('Cannot use both --dataset-version and --use-last-versions')
         sys.exit()
 
-    if args.all:
+    if args.direct:
+        try:
+            print lib.get_direct_bash_cmd(args.dataset[0], args.alias)
+        except Exception as e:
+            print "Failure to parse dataset, {}".format(str(e))
+            exit(-1)
+    elif args.all:
         try:
             print lib.load_prefix(args.dataset[0], args.success_only, args.use_last_versions, args.exclude_regex)
         except Exception as e:
