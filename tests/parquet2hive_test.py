@@ -1,7 +1,8 @@
+from time import sleep
+
 import boto3
 from moto import mock_s3
 from parquet2hive_modules import parquet2hivelib as lib
-from time import sleep
 import pytest
 
 
@@ -12,6 +13,7 @@ def _setup_module():
     global bucket
     global dataset_file
     global new_dataset_file
+    global complex_file
 
     s3 = boto3.resource('s3')
     bucket_name = 'test-bucket'
@@ -20,9 +22,11 @@ def _setup_module():
     bucket = s3.Bucket(bucket_name)
     dataset_file = 'tests/dataset.parquet'
     new_dataset_file = 'tests/dataset-new.parquet'
+    complex_file = 'tests/complex.parquet'
     lib.check_success_exists.cache_clear()
 
-class TestLoadBucket:
+
+class TestLoadBucket(object):
 
     @mock_s3
     def test_load_prefix_no_prefix(self):
@@ -83,7 +87,7 @@ class TestLoadBucket:
         assert 'create external table frank' in bash_cmd
 
 
-class TestGetBashCmd:
+class TestGetBashCmd(object):
 
     @mock_s3
     def test_with_single_file(self):
@@ -280,7 +284,7 @@ class TestGetBashCmd:
 
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset, exclude_regex=['.*DEV.*'])
-        
+
         assert 'table churn' in bash_cmd
         assert 'table churn_v1' in bash_cmd
         assert 'table churn_v2' not in bash_cmd
@@ -296,11 +300,11 @@ class TestGetBashCmd:
 
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset, exclude_regex=['.*'])
-        
+
         assert not bash_cmd
 
 
-class TestGetVersions:
+class TestGetVersions(object):
 
     @mock_s3
     def test_incorrect_version(self):
@@ -349,7 +353,7 @@ class TestGetVersions:
         assert lib.get_versions(bucket, 'prod') == [], 'Should ignore nested dataset that is not explicitly identified'
 
 
-class TestSuccessExists:
+class TestSuccessExists(object):
 
     @mock_s3
     def test_exists_within_partition(self):
@@ -402,7 +406,7 @@ class TestSuccessExists:
         assert not lib.check_success_exists(s3, bucket_name, '/'.join([prefix, version])), '_SUCCESS found when actually missing from directory'
 
 
-class TestIgnoreKey:
+class TestIgnoreKey(object):
 
     def test_ignore_real_file_temp_dir(self):
         assert lib.ignore_key('mobile/android_events/v1/channel=aurora/submission=20160919/_temporary/0_$folder$'), "Did not ignore temporary dir file"
@@ -423,124 +427,365 @@ class TestIgnoreKey:
         assert lib.ignore_key('directory1/directory2/partition=1/'), "Did not ignore directory"
 
 
-class TestGetPartitioningFields:
+class TestGetPartitioningFields(object):
 
     def test_finds_partitions(self):
         assert lib.get_partitioning_fields('sample_id=1/test_id=3/obj') == ['sample_id', 'test_id']
 
 
-class TestAvro2Sql:
+DATASET_TREE = [
+    ('optional', 'byte_array', 'clientId', 'utf8'),
+    ('optional', 'int32', 'sampleId', None),
+    ('optional', 'byte_array', 'channel', 'utf8'),
+    ('optional', 'byte_array', 'normalizedChannel', 'utf8'),
+    ('optional', 'byte_array', 'country', 'utf8'),
+    ('optional', 'int32', 'profileCreationDate', None),
+    ('optional', 'byte_array', 'subsessionStartDate', 'utf8'),
+    ('optional', 'int32', 'subsessionLength', None),
+    ('optional', 'byte_array', 'distributionId', 'utf8'),
+    ('optional', 'byte_array', 'submissionDate', 'utf8'),
+    ('optional', 'boolean', 'syncConfigured', None),
+    ('optional', 'int32', 'syncCountDesktop', None),
+    ('optional', 'int32', 'syncCountMobile', None),
+    ('optional', 'byte_array', 'version', 'utf8'),
+    ('optional', 'int64', 'timestamp', None),
+    ('optional', 'boolean', 'e10sEnabled', None),
+    ('optional', 'byte_array', 'e10sCohort', 'utf8'),
+]
 
-    def setup(self):
-        self.avro = {'fields': [{'metadata': {}, 'type': 'string', 'name': 'clientId', 'nullable': True},
-                                {'metadata': {}, 'type': 'integer', 'name': 'sampleId', 'nullable': True}],
-                     'type': 'struct'}
-        self.name = "churn"
-        self.version = "v3"
-        self.location = "localhost"
-        self.partitions = []
-
-        self.create_table_sql = 'drop table if exists {0}; '
-        self.create_table_sql += 'create external table {0}(`clientId` string, `sampleId` int) stored as parquet location \'"\'localhost/v3\'"\'; '
-        self.create_table_sql += 'msck repair table {0};'
-
-    def test_churn_transform(self):
-        assert lib.avro2sql(self.avro, self.name, self.version, self.location, self.partitions) == self.create_table_sql.format('churn_v3'), 'SQL Schema is not correct'
-
-    def test_churn_transform_no_version(self):
-        assert lib.avro2sql(self.avro, self.name, self.version, self.location, self.partitions, False) == self.create_table_sql.format('churn'), 'SQL Schema is not correct'
-
-
-class TestTransformType:
-
-    def test_unchanged_type(self):
-        assert lib.transform_type('string') == 'string', 'Unchanged type is changed when it should not be'
-
-    def test_mapped_type(self):
-        assert lib.transform_type('integer') == 'int', 'Mapped type is not mapping to correct value'
-
-    def test_map_type(self):
-        avro = {'type': 'map',
-                'values': 'string'}
-        assert lib.transform_type(avro) == 'map<string,string>', 'Map of string to string did not return correct schema'
-
-    def test_nested_map(self):
-        avro = {'type': 'map',
-                'values': {'type': 'map', 'values': 'string'}}
-        assert lib.transform_type(avro) == 'map<string,map<string,string>>', 'Nested map of string-string did not return correct schema'
-
-    def test_array_type(self):
-        avro = {'type': 'array',
-                'items': 'integer'}
-        assert lib.transform_type(avro) == 'array<int>', 'Array of ints did not return correct schema'
-
-    def test_record_type(self):
-        avro = {'type': 'record',
-                'name': 'udf1',
-                'fields': [{'name': 'field1', 'type': 'integer'},
-                           {'name': 'field2', 'type': 'string'}]}
-        assert lib.transform_type(avro) == 'struct<`field1`: int, `field2`: string>', 'Record with two fields did not return correct schema'
-        assert 'udf1' in lib.udf, 'New udf not inserted into udf dict'
-
-    def test_struct_type(self):
-        avro = {'type': 'struct',
-                'fields': [{'name': 'field1', 'type': 'long'},
-                           {'name': 'field2', 'type': 'timestamp'}]}
-        assert lib.transform_type(avro) == 'struct<`field1`: bigint, `field2`: timestamp>', 'Struct with two fields did not return correct schema'
+NEW_DATASET_TREE = [
+    ('optional', 'int64', 'id', None),
+]
 
 
-DATASET_SCHEMA = {
-    u'fields': [
-        {u'metadata': {}, u'type': u'string', u'name': u'clientId', u'nullable': True},
-        {u'metadata': {}, u'type': u'integer', u'name': u'sampleId', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'channel', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'normalizedChannel', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'country', u'nullable': True},
-        {u'metadata': {}, u'type': u'integer', u'name': u'profileCreationDate', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'subsessionStartDate', u'nullable': True},
-        {u'metadata': {}, u'type': u'integer', u'name': u'subsessionLength', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'distributionId', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'submissionDate', u'nullable': True},
-        {u'metadata': {}, u'type': u'boolean', u'name': u'syncConfigured', u'nullable': True},
-        {u'metadata': {}, u'type': u'integer', u'name': u'syncCountDesktop', u'nullable': True},
-        {u'metadata': {}, u'type': u'integer', u'name': u'syncCountMobile', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'version', u'nullable': True},
-        {u'metadata': {}, u'type': u'long', u'name': u'timestamp', u'nullable': True},
-        {u'metadata': {}, u'type': u'boolean', u'name': u'e10sEnabled', u'nullable': True},
-        {u'metadata': {}, u'type': u'string', u'name': u'e10sCohort', u'nullable': True}
-    ],
-    u'type': u'struct'
-}
-
-NEW_DATASET_SCHEMA = {
-    u'fields': [
-        {u'metadata': {}, u'type': u'long', u'name': u'id', u'nullable': True}
-    ],
-    u'type': u'struct'
-}
-
-
-class TestReadSchema:
+class TestBuildTree(object):
 
     @mock_s3
-    def test_read_dataset_schema(self):
+    def test_dataset_schema(self):
         _setup_module()
 
         obj = bucket.Object('my/dataset')
         with open(dataset_file, 'rb') as fileobj:
             obj.upload_fileobj(fileobj)
 
-        assert lib.read_schema(obj) == DATASET_SCHEMA
+        schema = lib.read_schema(obj)
+        assert lib.build_tree(schema[1:], schema[0].num_children) == DATASET_TREE
 
     @mock_s3
-    def test_read_new_dataset_schema(self):
+    def test_new_dataset_schema(self):
         _setup_module()
 
         obj = bucket.Object('my/new-dataset')
         with open(new_dataset_file, 'rb') as fileobj:
             obj.upload_fileobj(fileobj)
 
-        assert lib.read_schema(obj) == NEW_DATASET_SCHEMA
+        schema = lib.read_schema(obj)
+        assert lib.build_tree(schema[1:], schema[0].num_children) == NEW_DATASET_TREE
+
+
+DATASET_SQL = "drop table if exists dataset_table; " \
+            + "create external table dataset_table(" \
+                + "`clientId` string, " \
+                + "`sampleId` int, " \
+                + "`channel` string, " \
+                + "`normalizedChannel` string, " \
+                + "`country` string, " \
+                + "`profileCreationDate` int, " \
+                + "`subsessionStartDate` string, " \
+                + "`subsessionLength` int, " \
+                + "`distributionId` string, " \
+                + "`submissionDate` string, " \
+                + "`syncConfigured` boolean, " \
+                + "`syncCountDesktop` int, " \
+                + "`syncCountMobile` int, " \
+                + "`version` string, " \
+                + "`timestamp` bigint, " \
+                + "`e10sEnabled` boolean, " \
+                + "`e10sCohort` string" \
+            + ") stored as parquet location '\"'s3://test-bucket/dataset.parquet'\"'; " \
+            + "msck repair table dataset_table;"
+
+NEW_DATASET_SQL = "drop table if exists new_dataset_table; " \
+                + "create external table new_dataset_table(" \
+                    + "`id` bigint" \
+                + ") stored as parquet location '\"'s3://test-bucket/new-dataset.parquet'\"'; " \
+                + "msck repair table new_dataset_table;"
+
+COMPLEX_SQL = "drop table if exists complex_table; " \
+            + "create external table complex_table(" \
+                + "`application` struct<" \
+                    + "`addons`: struct<" \
+                        + "`active_addons`: map<string,string>, " \
+                        + "`active_experiment`: struct<`id`: string, `branch`: string>, " \
+                        + "`active_gmplugins`: map<string,string>, " \
+                        + "`active_plugins`: string, " \
+                        + "`persona`: string, " \
+                        + "`theme`: struct<" \
+                            + "`id`: string, " \
+                            + "`blocklisted`: boolean, " \
+                            + "`description`: string, " \
+                            + "`name`: string, " \
+                            + "`user_disabled`: boolean, " \
+                            + "`app_disabled`: boolean, " \
+                            + "`version`: string, " \
+                            + "`scope`: bigint, " \
+                            + "`foreign_install`: string, " \
+                            + "`has_binary_components`: boolean, " \
+                            + "`install_day`: string, " \
+                            + "`update_day`: bigint" \
+                        + ">" \
+                    + ">, " \
+                    + "`architecture`: string, " \
+                    + "`build_id`: string, " \
+                    + "`channel`: string, " \
+                    + "`name`: string, " \
+                    + "`platform_version`: string, " \
+                    + "`version`: string" \
+                + ">, " \
+                + "`client_id` string, " \
+                + "`creation_date` string, " \
+                + "`environment` struct<" \
+                    + "`system`: struct<" \
+                        + "`os`: struct<" \
+                            + "`name`: string, " \
+                            + "`version`: string, " \
+                            + "`locale`: string" \
+                        + ">" \
+                    + ">, " \
+                    + "`profile`: struct<" \
+                        + "`creation_date`: bigint, " \
+                        + "`reset_date`: bigint" \
+                    + ">, " \
+                    + "`settings`: struct<" \
+                        + "`blocklist_enabled`: boolean, " \
+                        + "`is_default_browser`: boolean, " \
+                        + "`default_search_engine`: string, " \
+                        + "`default_search_engine_data`: struct<" \
+                            + "`name`: string, " \
+                            + "`load_path`: string, " \
+                            + "`submission_url`: string, " \
+                            + "`origin`: string" \
+                        + ">, " \
+                        + "`e10s_enabled`: boolean, " \
+                        + "`e10s_cohort`: string, " \
+                        + "`locale`: string, " \
+                        + "`telemetry_enabled`: boolean, " \
+                        + "`update`: struct<" \
+                            + "`auto_download`: boolean, " \
+                            + "`channel`: string, " \
+                            + "`enabled`: boolean" \
+                        + ">" \
+                    + ">" \
+                + ">, " \
+                + "`id` string, " \
+                + "`type` string, " \
+                + "`version` double, " \
+                + "`payload` struct<" \
+                    + "`version`: bigint, " \
+                    + "`study_name`: string, " \
+                    + "`branch`: string, " \
+                    + "`addon_version`: string, " \
+                    + "`shield_version`: string, " \
+                    + "`testing`: boolean, " \
+                    + "`data`: struct<" \
+                        + "`study_state`: string, " \
+                        + "`study_state_fullname`: string, " \
+                        + "`attributes`: map<string,string>" \
+                    + ">, " \
+                    + "`type`: string" \
+                + ">, " \
+                + "`metadata` struct<" \
+                    + "`timestamp`: bigint, " \
+                    + "`submission_date`: string, " \
+                    + "`date`: string, " \
+                    + "`normalized_channel`: string, " \
+                    + "`geo_country`: string, " \
+                    + "`geo_city`: string" \
+                + ">" \
+            + ") stored as parquet location '\"'s3://test-bucket/complex.parquet'\"'; " \
+            + "msck repair table complex_table;"
+
+
+class TestParquet2Sql(object):
+
+    @mock_s3
+    def test_dataset(self):
+        _setup_module()
+
+        obj = bucket.Object('my/dataset')
+        with open(dataset_file, 'rb') as fileobj:
+            obj.upload_fileobj(fileobj)
+
+        schema = lib.read_schema(obj)
+        assert lib.parquet2sql(schema, 'dataset_table', 's3://test-bucket/dataset.parquet', []) == DATASET_SQL
+
+    @mock_s3
+    def test_new_dataset(self):
+        _setup_module()
+
+        obj = bucket.Object('my/new-dataset')
+        with open(new_dataset_file, 'rb') as fileobj:
+            obj.upload_fileobj(fileobj)
+
+        schema = lib.read_schema(obj)
+        assert lib.parquet2sql(schema, 'new_dataset_table', 's3://test-bucket/new-dataset.parquet', []) == NEW_DATASET_SQL
+
+    @mock_s3
+    def test_complex(self):
+        _setup_module()
+
+        obj = bucket.Object('my/complex')
+        with open(complex_file, 'rb') as fileobj:
+            obj.upload_fileobj(fileobj)
+
+        schema = lib.read_schema(obj)
+        assert lib.parquet2sql(schema, 'complex_table', 's3://test-bucket/complex.parquet', []) == COMPLEX_SQL
+
+
+class TestSqlType(object):
+
+    def test_list(self):
+        fields = [
+            ('required', 'group', 'my_list', 'list', [
+                ('repeated', 'group', 'list', None, [
+                    ('optional', 'byte_array', 'element', 'utf8'),
+                ])
+            ]),
+            ('optional', 'group', 'my_list', 'list', [
+                ('repeated', 'group', 'list', None, [
+                    ('required', 'byte_array', 'element', 'utf8'),
+                ]),
+            ]),
+            ('optional', 'group', 'array_of_arrays', 'list', [
+                ('repeated', 'group', 'list', None, [
+                    ('required', 'group', 'element', 'list', [
+                        ('repeated', 'group', 'list', None, [
+                            ('required', 'int32', 'element', None),
+                        ]),
+                    ]),
+                ]),
+            ]),
+            ('optional', 'group', 'my_list', 'list', [
+                ('repeated', 'group', 'element', None, [
+                    ('required', 'byte_array', 'str', 'utf8'),
+                ]),
+            ]),
+            ('optional', 'group', 'my_list', 'list', [
+                ('repeated', 'int32', 'element', None),
+            ]),
+            ('optional', 'group', 'my_list', 'list', [
+                ('repeated', 'group', 'element', None, [
+                    ('required', 'byte_array', 'str', 'utf8'),
+                    ('required', 'int32', 'num', None),
+                ]),
+            ]),
+            ('optional', 'group', 'my_list', 'list', [
+                ('repeated', 'group', 'array', None, [
+                    ('required', 'byte_array', 'str', 'utf8'),
+                ])
+            ]),
+            ('optional', 'group', 'my_list', 'list', [
+                ('repeated', 'group', 'my_list_tuple', None, [
+                    ('required', 'byte_array', 'str', 'utf8'),
+                ])
+            ]),
+            ('repeated', 'int32', 'num', None),
+        ]
+
+        assert lib.sql_type(fields[0]) == 'array<string>'
+        assert lib.sql_type(fields[1]) == 'array<string>'
+        assert lib.sql_type(fields[2]) == 'array<array<int>>'
+        assert lib.sql_type(fields[3]) == 'array<string>'
+        assert lib.sql_type(fields[4]) == 'array<int>'
+        assert lib.sql_type(fields[5]) == 'array<struct<`str`: string, `num`: int>>'
+        assert lib.sql_type(fields[6]) == 'array<struct<`str`: string>>'
+        assert lib.sql_type(fields[7]) == 'array<struct<`str`: string>>'
+        assert lib.sql_type(fields[8]) == 'array<int>'
+
+    def test_map(self):
+        fields = [
+            ('required', 'group', 'my_map', 'map', [
+                ('repeated', 'group', 'key_value', None, [
+                    ('required', 'byte_array', 'key', 'utf8'),
+                    ('optional', 'int32', 'value', None),
+                ]),
+            ]),
+            ('optional', 'group', 'my_map', 'map', [
+                ('repeated', 'group', 'map', None, [
+                    ('required', 'byte_array', 'str', 'utf8'),
+                    ('required', 'int32', 'num', None),
+                ]),
+            ]),
+            ('optional', 'group', 'my_map', 'map_key_value', [
+                ('repeated', 'group', 'map', None, [
+                    ('required', 'byte_array', 'key', 'utf8'),
+                    ('optional', 'int32', 'value', None),
+                ]),
+            ]),
+        ]
+
+        assert lib.sql_type(fields[0]) == 'map<string,int>'
+        assert lib.sql_type(fields[1]) == 'map<string,int>'
+        assert lib.sql_type(fields[2]) == 'map<string,int>'
+
+    def test_complex(self):
+        fields = [
+            ('optional', 'group', 'fx_startup_migration_data_recency', 'map', [
+                ('repeated', 'group', 'map', 'map_key_value', [
+                    ('required', 'byte_array', 'key', 'utf8'),
+                    ('required', 'group', 'value', 'list', [
+                        ('repeated', 'group', 'array', None, [
+                            ('required', 'group', 'values', 'list', [
+                                ('repeated', 'int32', 'array', None),
+                            ]),
+                            ('required', 'int64', 'sum', None),
+                        ]),
+                    ]),
+                ]),
+            ]),
+            ('optional', 'group', 'fx_migration_entry_point', 'list', [
+                ('repeated', 'group', 'array', 'list', [
+                    ('repeated', 'int32', 'array', None),
+                ]),
+            ]),
+            ('optional', 'group', 'default_search_engine_data', None, [
+                ('optional', 'byte_array', 'name', 'utf8'),
+                ('optional', 'byte_array', 'load_path', 'utf8'),
+                ('optional', 'byte_array', 'submission_url', 'utf8'),
+            ]),
+            ('optional', 'group', 'active_addons', 'list', [
+                ('repeated', 'group', 'array', 'map', [
+                    ('repeated', 'group', 'map', 'map_key_value', [
+                        ('required', 'byte_array', 'key', 'utf8'),
+                        ('required', 'group', 'value', None, [
+                            ('optional', 'boolean', 'blocklisted', None),
+                            ('optional', 'byte_array', 'description', 'utf8'),
+                            ('optional', 'byte_array', 'name', 'utf8'),
+                            ('optional', 'boolean', 'user_disabled', None),
+                            ('optional', 'boolean', 'app_disabled', None),
+                            ('optional', 'byte_array', 'version', 'utf8'),
+                            ('optional', 'int32', 'scope', None),
+                            ('optional', 'byte_array', 'type', 'utf8'),
+                            ('optional', 'boolean', 'foreign_install', None),
+                            ('optional', 'boolean', 'has_byte_array_components', None),
+                            ('optional', 'int64', 'install_day', None),
+                            ('optional', 'int64', 'update_day', None),
+                            ('optional', 'int32', 'signed_state', None),
+                            ('optional', 'boolean', 'is_system', None),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]
+
+        assert lib.sql_type(fields[0]) == 'map<string,array<struct<`values`: array<int>, `sum`: bigint>>>'
+        assert lib.sql_type(fields[1]) == 'array<array<int>>'
+        assert lib.sql_type(fields[2]) == 'struct<`name`: string, `load_path`: string, `submission_url`: string>'
+        assert lib.sql_type(fields[3]) == 'array<map<string,struct<`blocklisted`: boolean, `description`: string, `name`: string, `user_disabled`: boolean, `app_disabled`: boolean, `version`: string, `scope`: int, `type`: string, `foreign_install`: boolean, `has_byte_array_components`: boolean, `install_day`: bigint, `update_day`: bigint, `signed_state`: int, `is_system`: boolean>>>'
+
+
+
+class TestReadSchema(object):
 
     @mock_s3
     def test_fail_on_bad_magic_number(self):
