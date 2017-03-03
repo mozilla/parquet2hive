@@ -209,7 +209,7 @@ def get_partitioning_fields(prefix):
 
 def parquet2sql(schema, table_name, location, partitions):
     fields = build_tree(schema[1:], schema[0].num_children)
-    stmts = ["`{}` {}".format(f[2], sql_type(f)) for f in fields]
+    stmts = ["`{}` {}".format(field['name'], sql_type(field)) for field in fields]
     fields_decl = ", ".join(stmts)
 
     if partitions:
@@ -219,7 +219,7 @@ def parquet2sql(schema, table_name, location, partitions):
         partition_decl = ""
 
     # check for duplicated fields
-    field_names = [field[2] for field in fields]
+    field_names = [field['name'] for field in fields]
     duplicate_columns = set(field_names) & set(partitions)
     assert not duplicate_columns, "Columns {} are in both the table columns and the partitioning columns; they should only be in one or another".format(", ".join(duplicate_columns))
     return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '\"'{3}'\"'; msck repair table {0};".format(table_name, fields_decl, partition_decl, location)
@@ -232,43 +232,70 @@ def build_tree(schema, children):
         elem = schema.pop(0)
 
         elem_type = 'group' if elem.type is None else Type._VALUES_TO_NAMES[elem.type].lower()
-        converted = None if elem.converted_type is None else ConvertedType._VALUES_TO_NAMES[elem.converted_type].lower()
-        repetition = FieldRepetitionType._VALUES_TO_NAMES[elem.repetition_type].lower()
+        converted_type = None if elem.converted_type is None else ConvertedType._VALUES_TO_NAMES[elem.converted_type].lower()
+        repetition_type = FieldRepetitionType._VALUES_TO_NAMES[elem.repetition_type].lower()
 
         if elem_type == 'group':
-            subs = build_tree(schema, elem.num_children)
-            retval.append((repetition, elem_type, elem.name, converted, subs))
+            children = build_tree(schema, elem.num_children)
         else:
-            retval.append((repetition, elem_type, elem.name, converted))
+            children = None
+
+        retval.append({
+            'type': elem_type,
+            'repetition_type': repetition_type,
+            'name': elem.name,
+            'children': children,
+            'converted_type': converted_type,
+        })
 
     return retval
 
 
 def sql_type(elem):
-    if elem[1] == 'group' and elem[3] == 'list' and len(elem[4]) == 1:
-        if elem[4][0][0] == 'repeated' and elem[4][0][1] == 'group' and elem[4][0][3] is None:
-            if len(elem[4][0][4]) > 1 or elem[4][0][2] in ('array', elem[2] + '_tuple'):
-                subs = ['`{}`: {}'.format(sub[2], sql_type(sub)) for sub in elem[4][0][4]]
-                return 'array<struct<{}>>'.format(', '.join(subs))
-            if len(elem[4][0][4]) == 1:
-                return 'array<{}>'.format(sql_type(elem[4][0][4][0]))
-        else:
-            elem = ('required',) + elem[4][0][1:]
-            return 'array<{}>'.format(sql_type(elem))
-    if elem[1] == 'group' and elem[3] in ('map', 'map_key_value'):
-        if elem[4][0][0] == 'repeated' and elem[4][0][1] == 'group':
-            if len(elem[4][0][4]) == 2:
-                return 'map<{},{}>'.format(sql_type(elem[4][0][4][0]), sql_type(elem[4][0][4][1]))
-    if elem[1] == 'group' and elem[3] is None or elem[3] == -1:
-        subs = ['`{}`: {}'.format(sub[2], sql_type(sub)) for sub in elem[4]]
+    # list type
+    if elem['type'] == 'group' and elem['converted_type'] == 'list':
+        child = elem['children'][0]
+
+        # if the repeated field is not a group, then its type is the element type and elements are required
+        if child['type'] != 'group':
+            child['repetition_type'] = 'required'
+            return 'array<{}>'.format(sql_type(child))
+
+        # if the repeated field is a group with multiple fields, then its type is the element type and elements are required
+        if child['type'] == 'group' and len(child['children']) > 1:
+            child['repetition_type'] = 'required'
+            return 'array<{}>'.format(sql_type(child))
+
+        # if the repeated field is a group with one field and is named either array or uses the LIST-annotated group's
+        # name with _tuple appended then the repeated type is the element type and elements are required
+        if child['type'] == 'group' and len(child['children']) == 1 and child['name'] in ('array', elem['name'] + '_tuple'):
+            child['repetition_type'] = 'required'
+            return 'array<{}>'.format(sql_type(child))
+
+        return 'array<{}>'.format(sql_type(child['children'][0]))
+
+    # map type
+    if elem['type'] == 'group' and elem['converted_type'] in ('map', 'map_key_value'):
+        key, val = elem['children'][0]['children']
+        return 'map<{},{}>'.format(sql_type(key), sql_type(val))
+
+    # struct type
+    if elem['type'] == 'group' and elem['converted_type'] is None:
+        subs = ['`{}`: {}'.format(sub['name'], sql_type(sub)) for sub in elem['children']]
         return 'struct<{}>'.format(', '.join(subs))
-    if elem[0] == 'repeated':
-        elem = ('required',) + elem[1:]
+
+    # unannotated repeated type
+    if elem['repetition_type'] == 'repeated':
+        elem['repetition_type'] = 'required'
         return 'array<{}>'.format(sql_type(elem))
-    if elem[1] == 'byte_array' and elem[3] == 'utf8':
+
+    # byte_array type + utf8 converted_type = string
+    if elem['type'] == 'byte_array' and elem['converted_type'] == 'utf8':
         return 'string'
-    if elem[1] in CONVERSIONS:
-        return CONVERSIONS[elem[1]]
+
+    # conversion map
+    if elem['type'] in CONVERSIONS:
+        return CONVERSIONS[elem['type']]
 
     return None
 
