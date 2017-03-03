@@ -434,27 +434,27 @@ class TestGetPartitioningFields(object):
 
 
 DATASET_TREE = [
-    ('optional', 'byte_array', 'clientId', 'utf8'),
-    ('optional', 'int32', 'sampleId', None),
-    ('optional', 'byte_array', 'channel', 'utf8'),
-    ('optional', 'byte_array', 'normalizedChannel', 'utf8'),
-    ('optional', 'byte_array', 'country', 'utf8'),
-    ('optional', 'int32', 'profileCreationDate', None),
-    ('optional', 'byte_array', 'subsessionStartDate', 'utf8'),
-    ('optional', 'int32', 'subsessionLength', None),
-    ('optional', 'byte_array', 'distributionId', 'utf8'),
-    ('optional', 'byte_array', 'submissionDate', 'utf8'),
-    ('optional', 'boolean', 'syncConfigured', None),
-    ('optional', 'int32', 'syncCountDesktop', None),
-    ('optional', 'int32', 'syncCountMobile', None),
-    ('optional', 'byte_array', 'version', 'utf8'),
-    ('optional', 'int64', 'timestamp', None),
-    ('optional', 'boolean', 'e10sEnabled', None),
-    ('optional', 'byte_array', 'e10sCohort', 'utf8'),
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'clientId', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'sampleId', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'channel', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'normalizedChannel', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'country', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'profileCreationDate', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'subsessionStartDate', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'subsessionLength', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'distributionId', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'submissionDate', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'boolean', 'name': 'syncConfigured', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'syncCountDesktop', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'syncCountMobile', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'version', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'int64', 'name': 'timestamp', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'boolean', 'name': 'e10sEnabled', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'e10sCohort', 'converted_type': 'utf8', 'children': None},
 ]
 
 NEW_DATASET_TREE = [
-    ('optional', 'int64', 'id', None),
+    {'repetition_type': 'optional', 'type': 'int64', 'name': 'id', 'converted_type': None, 'children': None},
 ]
 
 
@@ -646,50 +646,50 @@ class TestSqlType(object):
 
     def test_list(self):
         fields = [
-            ('required', 'group', 'my_list', 'list', [
-                ('repeated', 'group', 'list', None, [
-                    ('optional', 'byte_array', 'element', 'utf8'),
-                ])
-            ]),
-            ('optional', 'group', 'my_list', 'list', [
-                ('repeated', 'group', 'list', None, [
-                    ('required', 'byte_array', 'element', 'utf8'),
-                ]),
-            ]),
-            ('optional', 'group', 'array_of_arrays', 'list', [
-                ('repeated', 'group', 'list', None, [
-                    ('required', 'group', 'element', 'list', [
-                        ('repeated', 'group', 'list', None, [
-                            ('required', 'int32', 'element', None),
-                        ]),
-                    ]),
-                ]),
-            ]),
-            ('optional', 'group', 'my_list', 'list', [
-                ('repeated', 'group', 'element', None, [
-                    ('required', 'byte_array', 'str', 'utf8'),
-                ]),
-            ]),
-            ('optional', 'group', 'my_list', 'list', [
-                ('repeated', 'int32', 'element', None),
-            ]),
-            ('optional', 'group', 'my_list', 'list', [
-                ('repeated', 'group', 'element', None, [
-                    ('required', 'byte_array', 'str', 'utf8'),
-                    ('required', 'int32', 'num', None),
-                ]),
-            ]),
-            ('optional', 'group', 'my_list', 'list', [
-                ('repeated', 'group', 'array', None, [
-                    ('required', 'byte_array', 'str', 'utf8'),
-                ])
-            ]),
-            ('optional', 'group', 'my_list', 'list', [
-                ('repeated', 'group', 'my_list_tuple', None, [
-                    ('required', 'byte_array', 'str', 'utf8'),
-                ])
-            ]),
-            ('repeated', 'int32', 'num', None),
+            {'repetition_type': 'required', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'list', 'converted_type': None, 'children': [
+                    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'element', 'converted_type': 'utf8', 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'list', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'element', 'converted_type': 'utf8', 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'array_of_arrays', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'list', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'group', 'name': 'element', 'converted_type': 'list', 'children': [
+                        {'repetition_type': 'repeated', 'type': 'group', 'name': 'list', 'converted_type': None, 'children': [
+                            {'repetition_type': 'required', 'type': 'int32', 'name': 'element', 'converted_type': None, 'children': None},
+                        ]},
+                    ]},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'element', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'str', 'converted_type': 'utf8', 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'int32', 'name': 'element', 'converted_type': None, 'children': None},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'element', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'str', 'converted_type': 'utf8', 'children': None},
+                    {'repetition_type': 'required', 'type': 'int32', 'name': 'num', 'converted_type': None, 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'array', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'str', 'converted_type': 'utf8', 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'my_list_tuple', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'str', 'converted_type': 'utf8', 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'repeated', 'type': 'int32', 'name': 'num', 'converted_type': None, 'children': None},
         ]
 
         assert lib.sql_type(fields[0]) == 'array<string>'
@@ -704,24 +704,24 @@ class TestSqlType(object):
 
     def test_map(self):
         fields = [
-            ('required', 'group', 'my_map', 'map', [
-                ('repeated', 'group', 'key_value', None, [
-                    ('required', 'byte_array', 'key', 'utf8'),
-                    ('optional', 'int32', 'value', None),
-                ]),
-            ]),
-            ('optional', 'group', 'my_map', 'map', [
-                ('repeated', 'group', 'map', None, [
-                    ('required', 'byte_array', 'str', 'utf8'),
-                    ('required', 'int32', 'num', None),
-                ]),
-            ]),
-            ('optional', 'group', 'my_map', 'map_key_value', [
-                ('repeated', 'group', 'map', None, [
-                    ('required', 'byte_array', 'key', 'utf8'),
-                    ('optional', 'int32', 'value', None),
-                ]),
-            ]),
+            {'repetition_type': 'required', 'type': 'group', 'name': 'my_map', 'converted_type': 'map', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'key_value', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'key', 'converted_type': 'utf8', 'children': None},
+                    {'repetition_type': 'optional', 'type': 'int32', 'name': 'value', 'converted_type': None, 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_map', 'converted_type': 'map', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'map', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'str', 'converted_type': 'utf8', 'children': None},
+                    {'repetition_type': 'required', 'type': 'int32', 'name': 'num', 'converted_type': None, 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'my_map', 'converted_type': 'map_key_value', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'map', 'converted_type': None, 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'key', 'converted_type': 'utf8', 'children': None},
+                    {'repetition_type': 'optional', 'type': 'int32', 'name': 'value', 'converted_type': None, 'children': None},
+                ]},
+            ]},
         ]
 
         assert lib.sql_type(fields[0]) == 'map<string,int>'
@@ -730,59 +730,58 @@ class TestSqlType(object):
 
     def test_complex(self):
         fields = [
-            ('optional', 'group', 'fx_startup_migration_data_recency', 'map', [
-                ('repeated', 'group', 'map', 'map_key_value', [
-                    ('required', 'byte_array', 'key', 'utf8'),
-                    ('required', 'group', 'value', 'list', [
-                        ('repeated', 'group', 'array', None, [
-                            ('required', 'group', 'values', 'list', [
-                                ('repeated', 'int32', 'array', None),
-                            ]),
-                            ('required', 'int64', 'sum', None),
-                        ]),
-                    ]),
-                ]),
-            ]),
-            ('optional', 'group', 'fx_migration_entry_point', 'list', [
-                ('repeated', 'group', 'array', 'list', [
-                    ('repeated', 'int32', 'array', None),
-                ]),
-            ]),
-            ('optional', 'group', 'default_search_engine_data', None, [
-                ('optional', 'byte_array', 'name', 'utf8'),
-                ('optional', 'byte_array', 'load_path', 'utf8'),
-                ('optional', 'byte_array', 'submission_url', 'utf8'),
-            ]),
-            ('optional', 'group', 'active_addons', 'list', [
-                ('repeated', 'group', 'array', 'map', [
-                    ('repeated', 'group', 'map', 'map_key_value', [
-                        ('required', 'byte_array', 'key', 'utf8'),
-                        ('required', 'group', 'value', None, [
-                            ('optional', 'boolean', 'blocklisted', None),
-                            ('optional', 'byte_array', 'description', 'utf8'),
-                            ('optional', 'byte_array', 'name', 'utf8'),
-                            ('optional', 'boolean', 'user_disabled', None),
-                            ('optional', 'boolean', 'app_disabled', None),
-                            ('optional', 'byte_array', 'version', 'utf8'),
-                            ('optional', 'int32', 'scope', None),
-                            ('optional', 'byte_array', 'type', 'utf8'),
-                            ('optional', 'boolean', 'foreign_install', None),
-                            ('optional', 'boolean', 'has_byte_array_components', None),
-                            ('optional', 'int64', 'install_day', None),
-                            ('optional', 'int64', 'update_day', None),
-                            ('optional', 'int32', 'signed_state', None),
-                            ('optional', 'boolean', 'is_system', None),
-                        ]),
-                    ]),
-                ]),
-            ]),
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'fx_startup_migration_data_recency', 'converted_type': 'map', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'map', 'converted_type': 'map_key_value', 'children': [
+                    {'repetition_type': 'required', 'type': 'byte_array', 'name': 'key', 'converted_type': 'utf8', 'children': None},
+                    {'repetition_type': 'required', 'type': 'group', 'name': 'value', 'converted_type': 'list', 'children': [
+                        {'repetition_type': 'repeated', 'type': 'group', 'name': 'array', 'converted_type': None, 'children': [
+                            {'repetition_type': 'required', 'type': 'group', 'name': 'values', 'converted_type': 'list', 'children': [
+                                {'repetition_type': 'repeated', 'type': 'int32', 'name': 'array', 'converted_type': None, 'children': None},
+                            ]},
+                            {'repetition_type': 'required', 'type': 'int64', 'name': 'sum', 'converted_type': None, 'children': None},
+                        ]},
+                    ]},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'fx_migration_entry_point', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'array', 'converted_type': 'list', 'children': [
+                    {'repetition_type': 'repeated', 'type': 'int32', 'name': 'array', 'converted_type': None, 'children': None},
+                ]},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'default_search_engine_data', 'converted_type': None, 'children': [
+                {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'name', 'converted_type': 'utf8', 'children': None},
+                {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'load_path', 'converted_type': 'utf8', 'children': None},
+                {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'submission_url', 'converted_type': 'utf8', 'children': None},
+            ]},
+            {'repetition_type': 'optional', 'type': 'group', 'name': 'active_addons', 'converted_type': 'list', 'children': [
+                {'repetition_type': 'repeated', 'type': 'group', 'name': 'array', 'converted_type': 'map', 'children': [
+                    {'repetition_type': 'repeated', 'type': 'group', 'name': 'map', 'converted_type': 'map_key_value', 'children': [
+                        {'repetition_type': 'required', 'type': 'byte_array', 'name': 'key', 'converted_type': 'utf8', 'children': None},
+                        {'repetition_type': 'required', 'type': 'group', 'name': 'value', 'converted_type': None, 'children': [
+                            {'repetition_type': 'optional', 'type': 'boolean', 'name': 'blocklisted', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'description', 'converted_type': 'utf8', 'children': None},
+                            {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'name', 'converted_type': 'utf8', 'children': None},
+                            {'repetition_type': 'optional', 'type': 'boolean', 'name': 'user_disabled', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'boolean', 'name': 'app_disabled', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'version', 'converted_type': 'utf8', 'children': None},
+                            {'repetition_type': 'optional', 'type': 'int32', 'name': 'scope', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'type', 'converted_type': 'utf8', 'children': None},
+                            {'repetition_type': 'optional', 'type': 'boolean', 'name': 'foreign_install', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'boolean', 'name': 'has_byte_array_components', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'int64', 'name': 'install_day', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'int64', 'name': 'update_day', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'int32', 'name': 'signed_state', 'converted_type': None, 'children': None},
+                            {'repetition_type': 'optional', 'type': 'boolean', 'name': 'is_system', 'converted_type': None, 'children': None},
+                        ]},
+                    ]},
+                ]},
+            ]},
         ]
 
         assert lib.sql_type(fields[0]) == 'map<string,array<struct<`values`: array<int>, `sum`: bigint>>>'
         assert lib.sql_type(fields[1]) == 'array<array<int>>'
         assert lib.sql_type(fields[2]) == 'struct<`name`: string, `load_path`: string, `submission_url`: string>'
         assert lib.sql_type(fields[3]) == 'array<map<string,struct<`blocklisted`: boolean, `description`: string, `name`: string, `user_disabled`: boolean, `app_disabled`: boolean, `version`: string, `scope`: int, `type`: string, `foreign_install`: boolean, `has_byte_array_components`: boolean, `install_day`: bigint, `update_day`: bigint, `signed_state`: int, `is_system`: boolean>>>'
-
 
 
 class TestReadSchema(object):
