@@ -41,9 +41,11 @@ class TestLoadBucket(object):
         assert 'drop table if exists churn' in bash_cmd
         assert 'create external table churn' in bash_cmd
         assert 'create external table churn_v1' in bash_cmd
+        assert 's3://' + bucket_name + '/churn/v1' in bash_cmd
         assert 'drop table if exists frank' in bash_cmd
         assert 'create external table frank' in bash_cmd
         assert 'create external table frank_v1' in bash_cmd
+        assert 's3://' + bucket_name + '/frank/v1' in bash_cmd
 
     @mock_s3
     def test_load_prefix_incorrect_layout(self):
