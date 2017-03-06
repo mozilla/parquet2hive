@@ -47,6 +47,7 @@ def load_prefix(s3_loc, success_only=None, recent_versions=None, exclude_regex=N
     bash_cmd = ''
 
     for dataset in datasets:
+        dataset = _remove_trailing_backslash(dataset)
         try:
             bash_cmd += get_bash_cmd('s3://{}/{}'.format(bucket_name, dataset),
                                      success_only=success_only, recent_versions=recent_versions, exclude_regex=exclude_regex)
