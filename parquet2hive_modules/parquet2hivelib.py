@@ -216,7 +216,7 @@ def parquet2sql(schema, table_name, location, partitions):
     fields_decl = ", ".join(stmts)
 
     if partitions:
-        columns = ", ".join(["{} string".format(p) for p in partitions])
+        columns = ", ".join(["`{}` string".format(p) for p in partitions])
         partition_decl = " partitioned by ({})".format(columns)
     else:
         partition_decl = ""
@@ -225,7 +225,7 @@ def parquet2sql(schema, table_name, location, partitions):
     field_names = [field['name'] for field in fields]
     duplicate_columns = set(field_names) & set(partitions)
     assert not duplicate_columns, "Columns {} are in both the table columns and the partitioning columns; they should only be in one or another".format(", ".join(duplicate_columns))
-    return "drop table if exists {0}; create external table {0}({1}){2} stored as parquet location '\"'{3}'\"'; msck repair table {0};".format(table_name, fields_decl, partition_decl, location)
+    return "drop table if exists `{0}`; create external table `{0}`({1}){2} stored as parquet location '\"'{3}'\"'; msck repair table `{0}`;".format(table_name, fields_decl, partition_decl, location)
 
 
 def build_tree(schema, children):
