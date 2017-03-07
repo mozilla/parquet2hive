@@ -101,10 +101,12 @@ def get_bash_cmd(location, success_only=False, recent_versions=None, version=Non
 
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
-        table_name = dataset_name + "_" + version
-        bash_cmd += "hive -e '{}'\n".format(parquet2sql(schema, table_name, version_location, partitions))
+
+        default_table_name = _normalize_table_name(dataset_name)
+        version_table_name = _normalize_table_name(dataset_name + "_" + version)
+        bash_cmd += "hive -e '{}'\n".format(parquet2sql(schema, version_table_name, version_location, partitions))
         if versions_loaded == 0:  # Most recent version
-            bash_cmd += "hive -e '{}'\n".format(parquet2sql(schema, dataset_name, version_location, partitions))
+            bash_cmd += "hive -e '{}'\n".format(parquet2sql(schema, default_table_name, version_location, partitions))
 
         versions_loaded += 1
         if recent_versions is not None and versions_loaded >= recent_versions:
@@ -320,3 +322,10 @@ def _get_common_prefixes(bucket, prefix=''):
     client = boto3.client('s3')
     result = client.list_objects(Bucket=bucket, Prefix=prefix, Delimiter='/')
     return [prefix.get('Prefix') for prefix in result.get('CommonPrefixes', [])]
+
+
+def _normalize_table_name(table_name):
+    table_name = re.sub(r"([A-Z]+)([A-Z][a-z])", r'\1_\2', table_name)
+    table_name = re.sub(r"([a-z\d])([A-Z])", r'\1_\2', table_name)
+    table_name = table_name.replace("-", "_")
+    return table_name.lower()
