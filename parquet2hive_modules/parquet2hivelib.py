@@ -23,7 +23,8 @@ CONVERSIONS = {
 
 ignore_patterns = [
     r'.*/$',  # dirs
-    r'.*/_',  # temp dirs and files
+    r'.*/_[^=/]*/',  # temp dirs
+    r'.*/_[^/]*$',  # temp files
     r'.*/[^/]*\$folder\$/?'  # metadata dirs and files
 ]
 

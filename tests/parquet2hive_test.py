@@ -441,6 +441,9 @@ class TestIgnoreKey(object):
     def test_ignore_dir(self):
         assert lib.ignore_key('directory1/directory2/partition=1/'), "Did not ignore directory"
 
+    def test_not_ignore_partition_with_underscore(self):
+        assert not lib.ignore_key('directory/_partition=123/file'), "Ignored partition with underscore"
+
 
 class TestGetPartitioningFields(object):
 
