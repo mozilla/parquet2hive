@@ -108,6 +108,19 @@ class TestGetBashCmd(object):
         assert 'create external table churn_v2' in bash_cmd, 'Should create table with version'
 
     @mock_s3
+    def test_table_name_normalization(self):
+        _setup_module()
+
+        prefix, version, objectname = 'theBestChurn-data', 'v2', 'parquet'
+        s3_client.put_object(Bucket=bucket_name, Key='/'.join((prefix, version, objectname)), Body=open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        bash_cmd = lib.get_bash_cmd(dataset)
+
+        assert 'drop table if exists the_best_churn_data' in bash_cmd, 'Should normalize table name'
+        assert 'drop table if exists the_best_churn_data_v2' in bash_cmd, 'Should normalize versioned table name'
+
+    @mock_s3
     def test_with_single_file_end_in_slash(self):
         _setup_module()
 
