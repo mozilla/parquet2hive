@@ -38,13 +38,13 @@ class TestLoadBucket(object):
 
         bash_cmd = lib.load_prefix('s3://' + bucket_name)
 
-        assert 'drop table if exists churn' in bash_cmd
-        assert 'create external table churn' in bash_cmd
-        assert 'create external table churn_v1' in bash_cmd
+        assert 'drop table if exists `churn`' in bash_cmd
+        assert 'create external table `churn`' in bash_cmd
+        assert 'create external table `churn_v1`' in bash_cmd
         assert 's3://' + bucket_name + '/churn/v1' in bash_cmd
-        assert 'drop table if exists frank' in bash_cmd
-        assert 'create external table frank' in bash_cmd
-        assert 'create external table frank_v1' in bash_cmd
+        assert 'drop table if exists `frank`' in bash_cmd
+        assert 'create external table `frank`' in bash_cmd
+        assert 'create external table `frank_v1`' in bash_cmd
         assert 's3://' + bucket_name + '/frank/v1' in bash_cmd
 
     @mock_s3
@@ -68,12 +68,12 @@ class TestLoadBucket(object):
 
         bash_cmd = lib.load_prefix('s3://{}/{}'.format(bucket_name, 'temp'))
 
-        assert 'drop table if exists churn' in bash_cmd
-        assert 'create external table churn' in bash_cmd
-        assert 'create external table churn_v1' in bash_cmd
-        assert 'drop table if exists frank' in bash_cmd
-        assert 'create external table frank' in bash_cmd
-        assert 'create external table frank_v1' in bash_cmd
+        assert 'drop table if exists `churn`' in bash_cmd
+        assert 'create external table `churn`' in bash_cmd
+        assert 'create external table `churn_v1`' in bash_cmd
+        assert 'drop table if exists `frank`' in bash_cmd
+        assert 'create external table `frank`' in bash_cmd
+        assert 'create external table `frank_v1`' in bash_cmd
 
     @mock_s3
     def test_load_prefix_ignore_dir(self):
@@ -84,9 +84,9 @@ class TestLoadBucket(object):
             s3_client.put_object(Bucket=bucket_name, Key=o, Body=open(dataset_file, 'rb'))
 
         bash_cmd = lib.load_prefix('s3://{}/{}'.format(bucket_name, 'temp'))
-        assert 'drop table if exists tester' not in bash_cmd
-        assert 'create external table churn' in bash_cmd
-        assert 'create external table frank' in bash_cmd
+        assert 'drop table if exists `tester`' not in bash_cmd
+        assert 'create external table `churn`' in bash_cmd
+        assert 'create external table `frank`' in bash_cmd
 
 
 class TestGetBashCmd(object):
@@ -102,10 +102,10 @@ class TestGetBashCmd(object):
         bash_cmd = lib.get_bash_cmd(dataset)
 
         assert bash_cmd.startswith('hive'), 'Should be a valid hive command'
-        assert 'drop table if exists churn' in bash_cmd, 'Should drop table without version'
-        assert 'create external table churn' in bash_cmd, 'Should create table without version'
-        assert 'drop table if exists churn_v2' in bash_cmd, 'Should drop table with version'
-        assert 'create external table churn_v2' in bash_cmd, 'Should create table with version'
+        assert 'drop table if exists `churn`' in bash_cmd, 'Should drop table without version'
+        assert 'create external table `churn`' in bash_cmd, 'Should create table without version'
+        assert 'drop table if exists `churn_v2`' in bash_cmd, 'Should drop table with version'
+        assert 'create external table `churn_v2`' in bash_cmd, 'Should create table with version'
 
     @mock_s3
     def test_table_name_normalization(self):
@@ -117,8 +117,8 @@ class TestGetBashCmd(object):
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset)
 
-        assert 'drop table if exists the_best_churn_data' in bash_cmd, 'Should normalize table name'
-        assert 'drop table if exists the_best_churn_data_v2' in bash_cmd, 'Should normalize versioned table name'
+        assert 'drop table if exists `the_best_churn_data`' in bash_cmd, 'Should normalize table name'
+        assert 'drop table if exists `the_best_churn_data_v2`' in bash_cmd, 'Should normalize versioned table name'
 
     @mock_s3
     def test_with_single_file_end_in_slash(self):
@@ -234,7 +234,7 @@ class TestGetBashCmd(object):
 
         assert 'v1' in bash_cmd, 'Should process v1, but didn\'t'
         assert 'v2' in bash_cmd, 'Should process v2, but didn\'t'
-        assert bash_cmd.find('churn_v2;') < bash_cmd.find('churn;') < bash_cmd.find('churn_v1;'), 'Should process v2 as both churn_v2 and churn before processing v1'
+        assert bash_cmd.find('`churn_v2`;') < bash_cmd.find('`churn`;') < bash_cmd.find('`churn_v1`;'), 'Should process v2 as both churn_v2 and churn before processing v1'
         assert 'v3' not in bash_cmd, 'Should only process v1 and v2 and not v3, but didn\'t'
 
     @mock_s3
@@ -268,8 +268,8 @@ class TestGetBashCmd(object):
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset)
 
-        assert 'table prod/churn' not in bash_cmd
-        assert 'table churn' in bash_cmd
+        assert 'table `prod/churn`' not in bash_cmd
+        assert 'table `churn`' in bash_cmd
 
     @mock_s3
     def test_alias(self):
@@ -283,10 +283,10 @@ class TestGetBashCmd(object):
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset, alias='burn')
 
-        assert 'table churn' not in bash_cmd
-        assert 'table burn_v1' in bash_cmd
-        assert 'table burn_v2' in bash_cmd
-        assert 'table burn' in bash_cmd
+        assert 'table `churn`' not in bash_cmd
+        assert 'table `burn_v1`' in bash_cmd
+        assert 'table `burn_v2`' in bash_cmd
+        assert 'table `burn`' in bash_cmd
 
     @mock_s3
     def test_regex_exclude(self):
@@ -300,9 +300,9 @@ class TestGetBashCmd(object):
         dataset = 's3://' + '/'.join((bucket_name, prefix))
         bash_cmd = lib.get_bash_cmd(dataset, exclude_regex=['.*DEV.*'])
 
-        assert 'table churn' in bash_cmd
-        assert 'table churn_v1' in bash_cmd
-        assert 'table churn_v2' not in bash_cmd
+        assert 'table `churn`' in bash_cmd
+        assert 'table `churn_v1`' in bash_cmd
+        assert 'table `churn_v2`' not in bash_cmd
 
     @mock_s3
     def test_regex_exclude_all(self):
@@ -498,8 +498,8 @@ class TestBuildTree(object):
         assert lib.build_tree(schema[1:], schema[0].num_children) == NEW_DATASET_TREE
 
 
-DATASET_SQL = "drop table if exists dataset_table; " \
-            + "create external table dataset_table(" \
+DATASET_SQL = "drop table if exists `dataset_table`; " \
+            + "create external table `dataset_table`(" \
                 + "`clientId` string, " \
                 + "`sampleId` int, " \
                 + "`channel` string, " \
@@ -518,16 +518,16 @@ DATASET_SQL = "drop table if exists dataset_table; " \
                 + "`e10sEnabled` boolean, " \
                 + "`e10sCohort` string" \
             + ") stored as parquet location '\"'s3://test-bucket/dataset.parquet'\"'; " \
-            + "msck repair table dataset_table;"
+            + "msck repair table `dataset_table`;"
 
-NEW_DATASET_SQL = "drop table if exists new_dataset_table; " \
-                + "create external table new_dataset_table(" \
+NEW_DATASET_SQL = "drop table if exists `new_dataset_table`; " \
+                + "create external table `new_dataset_table`(" \
                     + "`id` bigint" \
                 + ") stored as parquet location '\"'s3://test-bucket/new-dataset.parquet'\"'; " \
-                + "msck repair table new_dataset_table;"
+                + "msck repair table `new_dataset_table`;"
 
-COMPLEX_SQL = "drop table if exists complex_table; " \
-            + "create external table complex_table(" \
+COMPLEX_SQL = "drop table if exists `complex_table`; " \
+            + "create external table `complex_table`(" \
                 + "`application` struct<" \
                     + "`addons`: struct<" \
                         + "`active_addons`: map<string,string>, " \
@@ -618,7 +618,7 @@ COMPLEX_SQL = "drop table if exists complex_table; " \
                     + "`geo_city`: string" \
                 + ">" \
             + ") stored as parquet location '\"'s3://test-bucket/complex.parquet'\"'; " \
-            + "msck repair table complex_table;"
+            + "msck repair table `complex_table`;"
 
 
 class TestParquet2Sql(object):
