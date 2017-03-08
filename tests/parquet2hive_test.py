@@ -108,6 +108,35 @@ class TestGetBashCmd(object):
         assert 'create external table `churn_v2`' in bash_cmd, 'Should create table with version'
 
     @mock_s3
+    def test_with_hive_output(self):
+        _setup_module()
+
+        prefix, version, objectname = 'churn', 'v2', 'parquet'
+        s3_client.put_object(Bucket=bucket_name, Key='/'.join((prefix, version, objectname)), Body=open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        location = dataset + '/' + version
+        bash_cmd = lib.get_bash_cmd(dataset)
+
+        assert bash_cmd.startswith('hive -e \''), 'Should be a valid hive command'
+        assert 'location \'"\'"\'{}\'"\'"\''.format(location) in bash_cmd, 'Should have correct location'
+
+    @mock_s3
+    def test_with_sql_output(self):
+        _setup_module()
+
+        prefix, version, objectname = 'churn', 'v2', 'parquet'
+        s3_client.put_object(Bucket=bucket_name, Key='/'.join((prefix, version, objectname)), Body=open(dataset_file, 'rb'))
+
+        dataset = 's3://' + '/'.join((bucket_name, prefix))
+        location = dataset + '/' + version
+        bash_cmd = lib.get_bash_cmd(dataset, just_sql=True)
+
+        assert bash_cmd.startswith('drop table '), 'Should be a valid sql string'
+        assert 'location \'{}\''.format(location) in bash_cmd, 'Should have correct location'
+
+
+    @mock_s3
     def test_table_name_normalization(self):
         _setup_module()
 
@@ -520,13 +549,13 @@ DATASET_SQL = "drop table if exists `dataset_table`; " \
                 + "`timestamp` bigint, " \
                 + "`e10sEnabled` boolean, " \
                 + "`e10sCohort` string" \
-            + ") stored as parquet location '\"'s3://test-bucket/dataset.parquet'\"'; " \
+            + ") stored as parquet location 's3://test-bucket/dataset.parquet'; " \
             + "msck repair table `dataset_table`;"
 
 NEW_DATASET_SQL = "drop table if exists `new_dataset_table`; " \
                 + "create external table `new_dataset_table`(" \
                     + "`id` bigint" \
-                + ") stored as parquet location '\"'s3://test-bucket/new-dataset.parquet'\"'; " \
+                + ") stored as parquet location 's3://test-bucket/new-dataset.parquet'; " \
                 + "msck repair table `new_dataset_table`;"
 
 COMPLEX_SQL = "drop table if exists `complex_table`; " \
@@ -620,7 +649,7 @@ COMPLEX_SQL = "drop table if exists `complex_table`; " \
                     + "`geo_country`: string, " \
                     + "`geo_city`: string" \
                 + ">" \
-            + ") stored as parquet location '\"'s3://test-bucket/complex.parquet'\"'; " \
+            + ") stored as parquet location 's3://test-bucket/complex.parquet'; " \
             + "msck repair table `complex_table`;"
 
 
