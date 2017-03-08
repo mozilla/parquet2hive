@@ -7,6 +7,8 @@ import botocore
 
 from functools32 import lru_cache
 
+from six.moves import shlex_quote
+
 from thrift.protocol import TCompactProtocol
 from thrift.transport import TTransport
 from .parquet_format.ttypes import FileMetaData, Type, ConvertedType, FieldRepetitionType
@@ -34,7 +36,7 @@ udf = {}
 class ParquetFormatError(Exception):
     pass
 
-def load_prefix(s3_loc, success_only=None, recent_versions=None, exclude_regex=None):
+def load_prefix(s3_loc, success_only=None, recent_versions=None, exclude_regex=None, just_sql=False):
     """Get a bash command which will load every dataset in a bucket at a prefix.
 
     For this to work, all datasets must be of the form `s3://$BUCKET_NAME/$PREFIX/$DATASET_NAME/v$VERSION/$PARTITIONS`.
@@ -51,13 +53,14 @@ def load_prefix(s3_loc, success_only=None, recent_versions=None, exclude_regex=N
         dataset = _remove_trailing_backslash(dataset)
         try:
             bash_cmd += get_bash_cmd('s3://{}/{}'.format(bucket_name, dataset),
-                                     success_only=success_only, recent_versions=recent_versions, exclude_regex=exclude_regex)
+                                     success_only=success_only, recent_versions=recent_versions,
+                                     exclude_regex=exclude_regex, just_sql=just_sql)
         except Exception as e:
             sys.stderr.write('Failed to process {}, {}\n'.format(dataset, str(e)))
     return bash_cmd
 
 
-def get_bash_cmd(location, success_only=False, recent_versions=None, version=None, alias=None, exclude_regex=None):
+def get_bash_cmd(location, success_only=False, recent_versions=None, version=None, alias=None, exclude_regex=None, just_sql=False):
     bucket_name, prefix = _get_bucket_and_prefix(location)
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
@@ -68,7 +71,7 @@ def get_bash_cmd(location, success_only=False, recent_versions=None, version=Non
         if not versions:
             sys.stderr.write("No schemas available with that version")
 
-    bash_cmd, versions_loaded = "", 0
+    output, versions_loaded = "", 0
     for version in versions:
         success_exists = False
         version_prefix = prefix + '/' + version + '/'
@@ -102,18 +105,27 @@ def get_bash_cmd(location, success_only=False, recent_versions=None, version=Non
 
         partitions = get_partitioning_fields(key.key[len(prefix):])
 
-
-        default_table_name = _normalize_table_name(dataset_name)
         version_table_name = _normalize_table_name(dataset_name + "_" + version)
-        bash_cmd += "hive -e '{}'\n".format(parquet2sql(schema, version_table_name, version_location, partitions))
+        version_sql = parquet2sql(schema, version_table_name, version_location, partitions)
+        output += _format_sql(version_sql, just_sql)
+
         if versions_loaded == 0:  # Most recent version
-            bash_cmd += "hive -e '{}'\n".format(parquet2sql(schema, default_table_name, version_location, partitions))
+            default_table_name = _normalize_table_name(dataset_name)
+            default_sql = parquet2sql(schema, default_table_name, version_location, partitions)
+            output += _format_sql(default_sql, just_sql)
 
         versions_loaded += 1
         if recent_versions is not None and versions_loaded >= recent_versions:
             break
 
-    return bash_cmd
+    return output
+
+
+def _format_sql(sql, just_sql=False):
+    if just_sql:
+        return sql + "\n"
+    else:
+        return "hive -e {}\n".format(shlex_quote(sql))
 
 
 def read_schema(s3obj):
@@ -226,7 +238,7 @@ def parquet2sql(schema, table_name, location, partitions):
     field_names = [field['name'] for field in fields]
     duplicate_columns = set(field_names) & set(partitions)
     assert not duplicate_columns, "Columns {} are in both the table columns and the partitioning columns; they should only be in one or another".format(", ".join(duplicate_columns))
-    return "drop table if exists `{0}`; create external table `{0}`({1}){2} stored as parquet location '\"'{3}'\"'; msck repair table `{0}`;".format(table_name, fields_decl, partition_decl, location)
+    return "drop table if exists `{0}`; create external table `{0}`({1}){2} stored as parquet location '{3}'; msck repair table `{0}`;".format(table_name, fields_decl, partition_decl, location)
 
 
 def build_tree(schema, children):

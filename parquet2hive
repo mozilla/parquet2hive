@@ -30,6 +30,9 @@ if __name__ == "__main__":
     parser.add_argument('--exclude-regex', type=str, default=None, nargs='*',
                         help='A regex pattern which causes any objects that match it to be ignored')
 
+    parser.add_argument('--sql', action='store_true',
+                        help='Whether tool should output hive-cli statements or just the raw SQL')
+
     args = parser.parse_args()
 
     if args.all and (args.dataset_version is not None or args.alias is not None):
@@ -42,13 +45,13 @@ if __name__ == "__main__":
 
     if args.all:
         try:
-            print lib.load_prefix(args.dataset[0], args.success_only, args.use_last_versions, args.exclude_regex)
+            print lib.load_prefix(args.dataset[0], args.success_only, args.use_last_versions, args.exclude_regex, args.sql)
         except Exception as e:
             print "Failed to load prefix, {}".format(str(e))
             exit(-1)
     else:
         try:
-            print lib.get_bash_cmd(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version, args.alias, args.exclude_regex)
+            print lib.get_bash_cmd(args.dataset[0], args.success_only, args.use_last_versions, args.dataset_version, args.alias, args.exclude_regex, args.sql)
         except Exception as e:
             print "Failure to parse dataset, {}".format(str(e))
             exit(-1)
