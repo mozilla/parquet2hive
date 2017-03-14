@@ -1,6 +1,15 @@
 language: python
 python:
   - "2.7"
-install: 
+install:
   - pip install -U pip setuptools
 script: python setup.py test
+deploy:
+  provider: pypi
+  user: robotblake
+  password:
+    secure: GEK8OhJQm2DjCTXVeS7h7MprB0EssHaOg59EHqTcbXAMDbB0xfwlWukjbDeTtAZG4tAmhHqfJlGV/VnohjhRiB9C1rNaBlxcTgTiCeyN/AO1Yn10u67JbRfxUd/p2B8Q79mQvgO7IDWtugy262H6iJPLTGxjRc7+vF1zu8OLu8AyjwB5pOD1MJGr/MAuDpJhUQdVU6lv/vZZ2rc2B9Yk3r+Nh6ilHI13ufOPjgb5ud8/qzQ6N6CeLnCTi7IcIgPjtaHZd6dFKgnbwYjbpIBGDTSfWcLK55DR2YvFnxOt1N+cGk3pElUpTKvis6mS99hHi8SpxjtTYtacxg/9hvwLNJA9VKD9Esaq/XK3q2VbU7XtuJ00wa8MXIDVknPPbzCSKY2HZyWkUT7wleTNny++57yapruyUDx6/hl2odvX5UpaOsH8FlkT4n5Nf8Lb7BEcJtZ/beVkS/l7w9j1UIY0spBXjxYK3H6ZY13jeK55pk+6rh5GbmcwP8vtysxVtSrGIJkP+wvRLrHLn6lyJ3r0grJN1LWad2S69PGYToNE+iKHqauoFqXXvV7iNBbbDBJQNBIt24NyDh1St1gFGccW3QEfj8UpQp/2gxcO1Dt/qYc38/0ixbjQssWLBW5E2QVOonZHIB97i0guY3q/JQwjVJ67bGyBB94YgSN2veoONeg=
+  on:
+    tags: true
+    distributions: sdist bdist_wheel
+    repo: mozilla/parquet2hive
