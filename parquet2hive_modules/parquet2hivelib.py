@@ -274,6 +274,8 @@ def build_tree(schema, children):
             'name': elem.name,
             'children': children,
             'converted_type': converted_type,
+            'scale': elem.scale,
+            'precision': elem.precision,
         })
 
     return retval
@@ -320,6 +322,10 @@ def sql_type(elem):
     # byte_array type + utf8 converted_type = string
     if elem['type'] == 'byte_array' and elem['converted_type'] == 'utf8':
         return 'string'
+
+    # decimal type
+    if elem['type'] == 'fixed_len_byte_array' and elem['converted_type'] == 'decimal':
+        return 'decimal({},{})'.format(elem['precision'], elem['scale'])
 
     # conversion map
     if elem['type'] in CONVERSIONS:
