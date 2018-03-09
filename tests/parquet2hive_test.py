@@ -498,6 +498,7 @@ DATASET_TREE = [
     {'repetition_type': 'optional', 'type': 'int64', 'name': 'timestamp', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
     {'repetition_type': 'optional', 'type': 'boolean', 'name': 'e10sEnabled', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
     {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'e10sCohort', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'fixed_len_byte_array', 'name': 'someDecimal', 'converted_type': 'decimal', 'children': None, 'scale': 2, 'precision': 4},
 ]
 
 NEW_DATASET_TREE = [
@@ -548,7 +549,8 @@ DATASET_SQL = "drop table if exists `dataset_table`; " \
                 + "`version` string, " \
                 + "`timestamp` bigint, " \
                 + "`e10sEnabled` boolean, " \
-                + "`e10sCohort` string" \
+                + "`e10sCohort` string, " \
+                + "`someDecimal` decimal(4,2)" \
             + ") stored as parquet location 's3://test-bucket/dataset.parquet'; " \
             + "msck repair table `dataset_table`;"
 
