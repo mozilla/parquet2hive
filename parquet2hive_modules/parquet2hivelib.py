@@ -66,6 +66,9 @@ def get_bash_cmd(location, success_only=False, recent_versions=None, version=Non
     bucket = s3.Bucket(bucket_name)
     versions = get_versions(bucket, prefix)
 
+    client = botocore.session.get_session().create_client('s3')
+    paginator = client.get_paginator('list_objects_v2')
+
     if version is not None:
         versions = [v for v in versions if v == version]
         if not versions:
@@ -78,32 +81,41 @@ def get_bash_cmd(location, success_only=False, recent_versions=None, version=Non
         version_location = location + '/' + version
         dataset_name = prefix.split('/')[-1] if alias is None else alias
 
-        keys = sorted(bucket.objects.filter(Prefix=version_prefix), key=lambda obj: obj.last_modified, reverse=True)
+        latest_summary = None
 
-        for key in keys:
-            if ignore_key(key.key, exclude_regex=exclude_regex):
+        iterator = paginator.paginate(Bucket=bucket_name, Prefix=version_prefix)
+
+        for summary in iterator.search('Contents[]'):
+            if summary is None:
                 continue
 
-            partition = "/".join(key.key.split("/")[:-1])
+            if ignore_key(summary['Key'], exclude_regex=exclude_regex):
+                continue
+
             if success_only:
-                if check_success_exists(s3, bucket.name, partition):
+                success_prefix = '/'.join(summary['Key'].split('/')[:-1])
+
+                if check_success_exists(s3, bucket_name, success_prefix):
                     success_exists = True
                 else:
                     continue
-            break
 
-        else:
-            if success_only and not success_exists:
-                sys.stderr.write("Ignoring dataset missing _SUCCESS file\n")
-            else:
-                sys.stderr.write("Ignoring empty dataset\n")
+            if latest_summary is None or summary['LastModified'] > latest_summary['LastModified']:
+                latest_summary = summary
+
+        if success_only and not success_exists:
+            sys.stderr.write("Ignoring dataset missing _SUCCESS file\n")
+            continue
+
+        if latest_summary is None:
+            sys.stderr.write("Ignoring empty dataset\n")
             continue
 
         sys.stderr.write("Analyzing dataset {}, {}\n".format(dataset_name, version))
 
-        schema = read_schema(key.Object())
+        schema = read_schema(s3.Object(bucket_name, latest_summary['Key']))
 
-        partitions = get_partitioning_fields(key.key[len(prefix):])
+        partitions = get_partitioning_fields(latest_summary['Key'][len(prefix):])
 
         version_table_name = _normalize_table_name(dataset_name + "_" + version)
         version_sql = parquet2sql(schema, version_table_name, version_location, partitions)
