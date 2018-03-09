@@ -481,27 +481,27 @@ class TestGetPartitioningFields(object):
 
 
 DATASET_TREE = [
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'clientId', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'int32', 'name': 'sampleId', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'channel', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'normalizedChannel', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'country', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'int32', 'name': 'profileCreationDate', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'subsessionStartDate', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'int32', 'name': 'subsessionLength', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'distributionId', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'submissionDate', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'boolean', 'name': 'syncConfigured', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'int32', 'name': 'syncCountDesktop', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'int32', 'name': 'syncCountMobile', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'version', 'converted_type': 'utf8', 'children': None},
-    {'repetition_type': 'optional', 'type': 'int64', 'name': 'timestamp', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'boolean', 'name': 'e10sEnabled', 'converted_type': None, 'children': None},
-    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'e10sCohort', 'converted_type': 'utf8', 'children': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'clientId', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'sampleId', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'channel', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'normalizedChannel', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'country', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'profileCreationDate', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'subsessionStartDate', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'subsessionLength', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'distributionId', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'submissionDate', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'boolean', 'name': 'syncConfigured', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'syncCountDesktop', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'int32', 'name': 'syncCountMobile', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'version', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'int64', 'name': 'timestamp', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'boolean', 'name': 'e10sEnabled', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
+    {'repetition_type': 'optional', 'type': 'byte_array', 'name': 'e10sCohort', 'converted_type': 'utf8', 'children': None, 'scale': None, 'precision': None},
 ]
 
 NEW_DATASET_TREE = [
-    {'repetition_type': 'optional', 'type': 'int64', 'name': 'id', 'converted_type': None, 'children': None},
+    {'repetition_type': 'optional', 'type': 'int64', 'name': 'id', 'converted_type': None, 'children': None, 'scale': None, 'precision': None},
 ]
 
 
