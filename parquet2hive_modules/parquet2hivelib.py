@@ -137,7 +137,7 @@ def _format_sql(sql, just_sql=False):
     if just_sql:
         return sql + "\n"
     else:
-        return "hive -e {}\n".format(shlex_quote(sql))
+        return "hive -e {} --hiveconf hive.msck.path.validation=skip\n".format(shlex_quote(sql))
 
 
 def read_schema(s3obj):
