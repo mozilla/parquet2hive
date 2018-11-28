@@ -33,6 +33,8 @@ ignore_patterns = [
 
 udf = {}
 
+class UnknownParquetTypeError(Exception):
+    pass
 
 class ParquetFormatError(Exception):
     pass
@@ -332,7 +334,7 @@ def sql_type(elem):
     if elem['type'] in CONVERSIONS:
         return CONVERSIONS[elem['type']]
 
-    return None
+    raise UnknownParquetTypeError('Unknown type ' + elem['type'])
 
 
 def _remove_trailing_backslash(location):

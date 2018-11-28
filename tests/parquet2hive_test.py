@@ -1,9 +1,9 @@
-from time import sleep
-
-import boto3
 from moto import mock_s3
 from parquet2hive_modules import parquet2hivelib as lib
+from time import sleep
+import boto3
 import pytest
+import unittest
 
 
 def _setup_module():
@@ -691,7 +691,16 @@ class TestParquet2Sql(object):
         assert lib.parquet2sql(schema, 'complex_table', 's3://test-bucket/complex.parquet', []) == COMPLEX_SQL
 
 
-class TestSqlType(object):
+class TestSqlType(unittest.TestCase):
+
+    def test_unknown(self):
+        fields = [
+            {'repetition_type': 'required', 'type': 'an_unknown_type', 'name': 'uuid', 'converted_type': None, 'children': None}
+        ]
+
+        with self.assertRaises(lib.UnknownParquetTypeError):
+            lib.sql_type(fields[0])
+
 
     def test_fixed_len_byte_array(self):
         fields = [
