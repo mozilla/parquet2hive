@@ -693,6 +693,13 @@ class TestParquet2Sql(object):
 
 class TestSqlType(object):
 
+    def test_fixed_len_byte_array(self):
+        fields = [
+            {'repetition_type': 'required', 'type': 'fixed_len_byte_array', 'name': 'uuid', 'converted_type': None, 'children': None}
+        ]
+
+        assert lib.sql_type(fields[0]) == 'binary'
+
     def test_list(self):
         fields = [
             {'repetition_type': 'required', 'type': 'group', 'name': 'my_list', 'converted_type': 'list', 'children': [

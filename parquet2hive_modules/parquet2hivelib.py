@@ -21,6 +21,7 @@ CONVERSIONS = {
     'float': 'float',
     'double': 'double',
     'byte_array': 'binary',
+    'fixed_len_byte_array': 'binary',
 }
 
 ignore_patterns = [
